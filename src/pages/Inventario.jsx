@@ -3,6 +3,7 @@ import { getProducts, deactivateProduct } from '../services/productService'
 import { exportToExcel } from '../services/exportService'
 import ProductModal from '../components/ProductModal'
 import MovementsModal from '../components/MovementsModal'
+import NavMenu from '../components/NavMenu'
 
 export default function Inventario() {
   const [productos, setProductos] = useState([])
