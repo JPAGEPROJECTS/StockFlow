@@ -228,21 +228,21 @@ export default function Ventas() {
 
   return (
     <div className="min-h-screen bg-[#F4EDE4]">
-      <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Columna Izquierda: Buscador y lista de productos */}
         <div className="lg:col-span-2 relative">
-          <h1 className="text-xl font-bold mb-4 text-[#1C140F]">Punto de Venta</h1>
+          <h1 className="text-lg sm:text-xl font-bold mb-4 text-[#1C140F]">Punto de Venta</h1>
 
           {/* Notificación flotante (Toast) */}
           {toast && (
-            <div className="fixed top-4 right-4 bg-[#3B2418] text-[#F4EDE4] px-4 py-2 rounded-2xl shadow-lg z-50 text-sm animate-fade-in">
+            <div className="fixed top-4 left-4 right-4 sm:left-auto sm:right-4 sm:max-w-xs bg-[#3B2418] text-[#F4EDE4] px-4 py-2 rounded-2xl shadow-lg z-50 text-sm animate-fade-in">
               {toast}
             </div>
           )}
 
           {/* Buscador + Filtros */}
-          <form onSubmit={handleBuscarSubmit} className="flex flex-col sm:flex-row gap-2 mb-2">
-            <div className="relative flex-1">
+          <form onSubmit={handleBuscarSubmit} className="flex flex-col gap-2 mb-2">
+            <div className="relative">
               <button
                 type="submit"
                 aria-label="Buscar"
@@ -257,7 +257,7 @@ export default function Ventas() {
                 value={busqueda}
                 onChange={e => setBusqueda(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Escape') setBusqueda('') }}
-                className="border border-[#E4D9CB] bg-white p-2 pl-11 pr-9 w-full rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30"
+                className="border border-[#E4D9CB] bg-white p-2 pl-11 pr-9 w-full rounded-2xl text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30"
               />
               {busqueda && (
                 <button
@@ -271,45 +271,47 @@ export default function Ventas() {
                 </button>
               )}
             </div>
-            <select
-              value={categoriaFiltro}
-              onChange={e => setCategoriaFiltro(e.target.value)}
-              className="border border-[#E4D9CB] bg-white p-2 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30 text-[#3B2418]"
-            >
-              <option value="">Todas las categorías</option>
-              {categorias.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-            <select
-              value={almacenFiltro}
-              onChange={e => setAlmacenFiltro(e.target.value)}
-              className="border border-[#E4D9CB] bg-white p-2 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30 text-[#3B2418]"
-            >
-              <option value="todos">Todos los almacenes</option>
-              {almacenes.map(a => (
-                <option key={a.id} value={a.id}>{a.name}</option>
-              ))}
-            </select>
-            <select
-              value={orden}
-              onChange={e => setOrden(e.target.value)}
-              className="border border-[#E4D9CB] bg-white p-2 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30 text-[#3B2418]"
-            >
-              {OPCIONES_ORDEN.map(o => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <select
+                value={categoriaFiltro}
+                onChange={e => setCategoriaFiltro(e.target.value)}
+                className="border border-[#E4D9CB] bg-white p-2 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30 text-[#3B2418]"
+              >
+                <option value="">Todas las categorías</option>
+                {categorias.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <select
+                value={almacenFiltro}
+                onChange={e => setAlmacenFiltro(e.target.value)}
+                className="border border-[#E4D9CB] bg-white p-2 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30 text-[#3B2418]"
+              >
+                <option value="todos">Todos los almacenes</option>
+                {almacenes.map(a => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
+              </select>
+              <select
+                value={orden}
+                onChange={e => setOrden(e.target.value)}
+                className="border border-[#E4D9CB] bg-white p-2 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30 text-[#3B2418]"
+              >
+                {OPCIONES_ORDEN.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
           </form>
 
           {/* Contador de resultados + limpiar filtros */}
-          <div className="flex justify-between items-center mb-4 text-xs text-[#3B2418]/50 h-4">
+          <div className="flex justify-between items-center mb-4 text-xs text-[#3B2418]/50 min-h-4 gap-2">
             <span>
               {!cargandoProductos && `${filtrados.length} de ${productos.length} productos`}
               {!cargandoProductos && filtrados.length === 1 && busqueda && ' · Enter para agregarlo'}
             </span>
             {hayFiltrosActivos && (
-              <button onClick={limpiarFiltros} className="text-[#3B2418] hover:underline">
+              <button onClick={limpiarFiltros} className="text-[#3B2418] hover:underline shrink-0">
                 Limpiar filtros
               </button>
             )}
@@ -330,7 +332,7 @@ export default function Ventas() {
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[70vh] overflow-auto pr-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[60vh] sm:max-h-[70vh] overflow-auto pr-1">
               {filtrados.map(p => {
                 const stockBajo = p.quantity <= (p.stock_min ?? 0)
                 return (
@@ -340,7 +342,7 @@ export default function Ventas() {
                     className="border border-[#E4D9CB] rounded-2xl p-3 text-left hover:shadow-md hover:border-[#3B2418]/40 transition-all bg-white flex flex-col justify-between"
                   >
                     <div>
-                      <p className="font-medium text-[#1C140F]">{p.name}</p>
+                      <p className="font-medium text-sm sm:text-base text-[#1C140F]">{p.name}</p>
                       <p className="text-xs text-[#3B2418]/50 mt-0.5">
                         {p.sku} {p.category_name && `· ${p.category_name}`}
                       </p>
@@ -362,8 +364,8 @@ export default function Ventas() {
         </div>
 
         {/* Columna Derecha: Carrito y confirmación */}
-        <div className="bg-white border border-[#E4D9CB] rounded-2xl p-5 shadow-sm h-fit">
-          <h2 className="font-bold text-lg mb-4 text-[#1C140F]">Carrito</h2>
+        <div className="bg-white border border-[#E4D9CB] rounded-2xl p-4 sm:p-5 shadow-sm h-fit">
+          <h2 className="font-bold text-base sm:text-lg mb-4 text-[#1C140F]">Carrito</h2>
 
           {error && <div className="bg-red-50 border border-red-200 text-red-700 p-2 rounded-2xl text-sm mb-3">{error}</div>}
 
@@ -373,11 +375,11 @@ export default function Ventas() {
             <div className="space-y-2 mb-4 max-h-[40vh] overflow-auto pr-1">
               {carrito.map(i => (
                 <div key={`${i.product_id}-${i.warehouse_id}`} className="border-b border-[#E4D9CB] pb-2">
-                  <div className="flex justify-between text-sm">
+                  <div className="flex justify-between text-sm gap-2">
                     <span className="font-medium text-[#1C140F]">{i.name}</span>
                     <button
                       onClick={() => quitarDelCarrito(i.product_id, i.warehouse_id)}
-                      className="flex items-center justify-center w-6 h-6 rounded-full bg-[#F4EDE4] text-red-600 hover:shadow-md transition"
+                      className="flex items-center justify-center w-6 h-6 rounded-full bg-[#F4EDE4] text-red-600 hover:shadow-md transition shrink-0"
                     >
                       <X size={12} />
                     </button>
@@ -418,7 +420,7 @@ export default function Ventas() {
           </select>
 
           {/* Total */}
-          <div className="flex justify-between font-bold text-lg mb-4 pt-2 border-t border-[#E4D9CB] text-[#1C140F]">
+          <div className="flex justify-between font-bold text-base sm:text-lg mb-4 pt-2 border-t border-[#E4D9CB] text-[#1C140F]">
             <span>Total</span>
             <span>${total.toFixed(2)}</span>
           </div>

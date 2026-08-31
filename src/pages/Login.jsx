@@ -19,19 +19,19 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#F4EDE4] p-4">
-      <div className="w-full max-w-4xl bg-white rounded-[28px] shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[560px]">
+    <div className="min-h-screen flex items-center justify-center bg-[#F4EDE4] p-3 sm:p-4">
+      <div className="w-full max-w-4xl bg-white rounded-2xl sm:rounded-[28px] shadow-2xl overflow-hidden flex flex-col md:flex-row md:min-h-[560px]">
 
         {/* Panel izquierdo — decorativo, chocolate */}
-        <div className="relative md:w-1/2 bg-[#3B2418] p-10 flex flex-col justify-between overflow-hidden">
+        <div className="relative md:w-1/2 bg-[#3B2418] p-6 sm:p-8 md:p-10 flex flex-col justify-between overflow-hidden">
 
           {/* Formas decorativas en tonos crema translúcidos */}
-          <div className="absolute -top-16 -right-16 w-64 h-64 bg-[#F4EDE4]/10 rounded-full"></div>
-          <div className="absolute bottom-10 -left-10 w-40 h-40 bg-[#F4EDE4]/10 rounded-full"></div>
-          <div className="absolute top-1/3 right-0 w-24 h-24 bg-black/20 rounded-full translate-x-1/2"></div>
+          <div className="absolute -top-16 -right-16 w-40 h-40 sm:w-64 sm:h-64 bg-[#F4EDE4]/10 rounded-full"></div>
+          <div className="absolute bottom-10 -left-10 w-28 h-28 sm:w-40 sm:h-40 bg-[#F4EDE4]/10 rounded-full"></div>
+          <div className="absolute top-1/3 right-0 w-16 h-16 sm:w-24 sm:h-24 bg-black/20 rounded-full translate-x-1/2"></div>
 
           {/* Triángulos arriba */}
-          <div className="relative z-10 flex gap-1.5">
+          <div className="relative z-10 hidden sm:flex gap-1.5">
             <div className="w-0 h-0 border-l-[9px] border-l-transparent border-r-[9px] border-r-transparent border-b-[15px] border-b-[#F4EDE4]"></div>
             <div className="w-0 h-0 border-l-[9px] border-l-transparent border-r-[9px] border-r-transparent border-b-[15px] border-b-[#F4EDE4]"></div>
             <div className="w-0 h-0 border-l-[9px] border-l-transparent border-r-[9px] border-r-transparent border-b-[15px] border-b-[#F4EDE4]"></div>
@@ -39,16 +39,16 @@ export default function Login() {
 
           {/* Texto central */}
           <div className="relative z-10">
-            <h1 className="text-[#F4EDE4] text-3xl font-bold leading-snug mb-3">
+            <h1 className="text-[#F4EDE4] text-2xl sm:text-3xl font-bold leading-snug mb-2 sm:mb-3">
               Bienvenido de vuelta
             </h1>
-            <p className="text-[#D8C7B8] text-sm leading-relaxed max-w-[30ch]">
+            <p className="text-[#D8C7B8] text-xs sm:text-sm leading-relaxed max-w-[30ch]">
               Inicia sesión para acceder con tu cuenta existente.
             </p>
           </div>
 
           {/* Triángulos abajo */}
-          <div className="relative z-10 flex gap-1.5">
+          <div className="relative z-10 hidden sm:flex gap-1.5">
             <div className="w-0 h-0 border-l-[9px] border-l-transparent border-r-[9px] border-r-transparent border-b-[15px] border-b-[#F4EDE4]"></div>
             <div className="w-0 h-0 border-l-[9px] border-l-transparent border-r-[9px] border-r-transparent border-b-[15px] border-b-[#F4EDE4]"></div>
             <div className="w-0 h-0 border-l-[9px] border-l-transparent border-r-[9px] border-r-transparent border-b-[15px] border-b-[#F4EDE4]"></div>
@@ -56,8 +56,8 @@ export default function Login() {
         </div>
 
         {/* Panel derecho — formulario */}
-        <div className="md:w-1/2 bg-white p-10 md:p-12 flex flex-col justify-center">
-          <h2 className="text-[#1C140F] text-3xl font-bold mb-8">
+        <div className="md:w-1/2 bg-white p-6 sm:p-8 md:p-10 lg:p-12 flex flex-col justify-center">
+          <h2 className="text-[#1C140F] text-2xl sm:text-3xl font-bold mb-6 sm:mb-8">
             Iniciar sesión
           </h2>
 
@@ -82,8 +82,8 @@ export default function Login() {
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 required
-                className="w-full bg-[#F4EDE4]/60 border border-[#E4D9CB] rounded-full pl-11 pr-4 py-3
-                  text-[#1C140F] placeholder:text-[#B3A192] focus:outline-none focus:ring-2
+                className="w-full bg-[#F4EDE4]/60 border border-[#E4D9CB] rounded-full pl-11 pr-4 py-2.5 sm:py-3
+                  text-sm sm:text-base text-[#1C140F] placeholder:text-[#B3A192] focus:outline-none focus:ring-2
                   focus:ring-[#3B2418]/30 focus:border-[#3B2418] transition"
               />
             </div>
@@ -102,13 +102,13 @@ export default function Login() {
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 required
-                className="w-full bg-[#F4EDE4]/60 border border-[#E4D9CB] rounded-full pl-11 pr-4 py-3
-                  text-[#1C140F] placeholder:text-[#B3A192] focus:outline-none focus:ring-2
+                className="w-full bg-[#F4EDE4]/60 border border-[#E4D9CB] rounded-full pl-11 pr-4 py-2.5 sm:py-3
+                  text-sm sm:text-base text-[#1C140F] placeholder:text-[#B3A192] focus:outline-none focus:ring-2
                   focus:ring-[#3B2418]/30 focus:border-[#3B2418] transition"
               />
             </div>
 
-            <div className="flex items-center justify-between text-sm pt-1 px-1">
+            <div className="flex flex-col xs:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 text-xs sm:text-sm pt-1 px-1">
               <label className="flex items-center gap-2 text-[#5C4433] cursor-pointer">
                 <input
                   type="checkbox"
@@ -126,14 +126,14 @@ export default function Login() {
             <button
               type="submit"
               disabled={cargando}
-              className="w-full bg-[#3B2418] text-[#F4EDE4] py-3.5 rounded-full font-medium
+              className="w-full bg-[#3B2418] text-[#F4EDE4] py-3 sm:py-3.5 rounded-full font-medium text-sm sm:text-base
                 hover:bg-[#2A1A11] transition disabled:opacity-50 mt-2 shadow-md"
             >
               {cargando ? 'Ingresando...' : 'Iniciar sesión'}
             </button>
           </form>
 
-          <p className="text-center text-sm text-[#8A7160] mt-6">
+          <p className="text-center text-xs sm:text-sm text-[#8A7160] mt-5 sm:mt-6">
             ¿Nuevo aquí?{' '}
             <a href="#" className="text-[#3B2418] font-medium hover:underline">
               Crear una cuenta

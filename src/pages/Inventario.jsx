@@ -115,28 +115,28 @@ export default function Inventario() {
 
   return (
     <div className="min-h-screen bg-[#F4EDE4]">
-      <div className="p-6 max-w-7xl mx-auto">
+      <div className="p-4 sm:p-6 max-w-7xl mx-auto">
         {/* Encabezado */}
         <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-[#1C140F]">Inventario</h1>
-            <p className="text-sm text-[#3B2418]/60">Gestiona tus productos, existencias y precios</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-[#1C140F]">Inventario</h1>
+            <p className="text-xs sm:text-sm text-[#3B2418]/60">Gestiona tus productos, existencias y precios</p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-col xs:flex-row gap-2 sm:gap-3">
             <button
               onClick={exportar}
-              className="flex items-center gap-2 bg-white border border-[#E4D9CB] text-[#3B2418] px-4 py-2 rounded-2xl font-medium hover:shadow-md transition-all"
+              className="flex items-center justify-center gap-2 bg-white border border-[#E4D9CB] text-[#3B2418] px-4 py-2 rounded-2xl font-medium text-sm hover:shadow-md transition-all"
             >
-              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-[#F4EDE4] text-[#3B2418]">
+              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-[#F4EDE4] text-[#3B2418] shrink-0">
                 <FileDown size={14} />
               </span>
               Exportar a Excel
             </button>
             <button
               onClick={() => { setEditando(null); setModalOpen(true) }}
-              className="flex items-center gap-2 bg-[#3B2418] text-[#F4EDE4] px-4 py-2 rounded-2xl font-medium hover:shadow-md transition-all"
+              className="flex items-center justify-center gap-2 bg-[#3B2418] text-[#F4EDE4] px-4 py-2 rounded-2xl font-medium text-sm hover:shadow-md transition-all"
             >
-              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-[#F4EDE4] text-[#3B2418]">
+              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-[#F4EDE4] text-[#3B2418] shrink-0">
                 <Plus size={14} />
               </span>
               Nuevo producto
@@ -145,14 +145,14 @@ export default function Inventario() {
         </div>
 
         {/* Tarjetas de resumen */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6">
           <div className="bg-white border border-[#E4D9CB] rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow flex items-center gap-4">
             <span className="flex items-center justify-center w-11 h-11 rounded-full bg-[#F4EDE4] text-[#3B2418] shrink-0">
               <Package size={20} />
             </span>
             <div>
-              <p className="text-sm text-[#3B2418]/60">Productos activos</p>
-              <p className="text-2xl font-bold text-[#1C140F]">{stats.totalProductos}</p>
+              <p className="text-xs sm:text-sm text-[#3B2418]/60">Productos activos</p>
+              <p className="text-xl sm:text-2xl font-bold text-[#1C140F]">{stats.totalProductos}</p>
             </div>
           </div>
           <div className={`border rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow flex items-center gap-4 ${stats.stockBajo > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-[#E4D9CB]'}`}>
@@ -160,8 +160,8 @@ export default function Inventario() {
               <AlertTriangle size={20} />
             </span>
             <div>
-              <p className="text-sm text-[#3B2418]/60">Con stock bajo</p>
-              <p className={`text-2xl font-bold ${stats.stockBajo > 0 ? 'text-red-600' : 'text-[#1C140F]'}`}>
+              <p className="text-xs sm:text-sm text-[#3B2418]/60">Con stock bajo</p>
+              <p className={`text-xl sm:text-2xl font-bold ${stats.stockBajo > 0 ? 'text-red-600' : 'text-[#1C140F]'}`}>
                 {stats.stockBajo}
               </p>
             </div>
@@ -171,8 +171,8 @@ export default function Inventario() {
               <DollarSign size={20} />
             </span>
             <div>
-              <p className="text-sm text-[#3B2418]/60">Valor total en inventario</p>
-              <p className="text-2xl font-bold text-[#1C140F]">
+              <p className="text-xs sm:text-sm text-[#3B2418]/60">Valor total en inventario</p>
+              <p className="text-xl sm:text-2xl font-bold text-[#1C140F]">
                 ${stats.valorTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
               </p>
             </div>
@@ -189,18 +189,18 @@ export default function Inventario() {
               placeholder="Buscar por nombre o SKU..."
               value={busqueda}
               onChange={e => setBusqueda(e.target.value)}
-              className="border border-[#E4D9CB] bg-white rounded-2xl p-2 pl-9 w-full focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30"
+              className="border border-[#E4D9CB] bg-white rounded-2xl p-2 pl-9 w-full text-sm focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30"
             />
           </div>
           <select
             value={almacenFiltro}
             onChange={e => setAlmacenFiltro(e.target.value)}
-            className="border border-[#E4D9CB] bg-white rounded-2xl p-2 focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30 text-[#3B2418]"
+            className="border border-[#E4D9CB] bg-white rounded-2xl p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30 text-[#3B2418]"
           >
             <option value="todos">Todos los almacenes</option>
             {almacenes.map(a => <option key={a} value={a}>{a}</option>)}
           </select>
-          <label className="flex items-center gap-2 border border-[#E4D9CB] bg-white rounded-2xl px-3 text-sm text-[#3B2418] whitespace-nowrap">
+          <label className="flex items-center gap-2 border border-[#E4D9CB] bg-white rounded-2xl px-3 py-2 sm:py-0 text-sm text-[#3B2418] whitespace-nowrap">
             <input
               type="checkbox"
               checked={soloStockBajo}
@@ -212,15 +212,15 @@ export default function Inventario() {
 
         {/* Error */}
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-3 mb-4 flex justify-between items-center">
+          <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-3 mb-4 flex flex-col sm:flex-row gap-2 justify-between sm:items-center text-sm">
             <span>{error}</span>
-            <button onClick={cargar} className="text-sm font-medium underline">Reintentar</button>
+            <button onClick={cargar} className="text-sm font-medium underline text-left sm:text-right shrink-0">Reintentar</button>
           </div>
         )}
 
-        {/* Tabla */}
-        <div className="border border-[#E4D9CB] rounded-2xl overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow">
-          <table className="w-full border-collapse">
+        {/* Tabla — scroll horizontal en pantallas chicas */}
+        <div className="border border-[#E4D9CB] rounded-2xl overflow-x-auto bg-white shadow-sm hover:shadow-md transition-shadow">
+          <table className="w-full border-collapse min-w-[720px]">
             <thead>
               <tr className="text-left border-b border-[#E4D9CB] bg-[#F4EDE4] text-sm text-[#3B2418]/70">
                 <Th campo="sku" orden={orden} onClick={cambiarOrden}>SKU</Th>
@@ -321,7 +321,7 @@ function Th({ campo, orden, onClick, children }) {
   const activo = orden.campo === campo
   return (
     <th
-      className="p-3 cursor-pointer select-none hover:text-[#1C140F]"
+      className="p-3 cursor-pointer select-none hover:text-[#1C140F] whitespace-nowrap"
       onClick={() => onClick(campo)}
     >
       <span className={`inline-flex items-center gap-1 ${activo ? 'font-semibold text-[#1C140F]' : ''}`}>
