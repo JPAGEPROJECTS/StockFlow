@@ -5,7 +5,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#F4EDE4] p-4 sm:p-6 pt-20 sm:pt-24">
       <div className="max-w-3xl mx-auto">
-        <h1 className="text-2xl sm:text-3xl font-bold text-[#1C140F] mb-1">StockFlow</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-[#1C140F] mb-1">StockFlow</h1>        
         <p className="text-sm sm:text-base text-[#8A7160] mb-6 sm:mb-10">Gestión de inventario y ventas</p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
