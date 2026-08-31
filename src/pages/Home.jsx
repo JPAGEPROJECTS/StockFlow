@@ -1,38 +1,51 @@
 import { Link } from 'react-router-dom'
+import { Package, ShoppingCart, BarChart3 } from 'lucide-react'
 
 export default function Home() {
   return (
-    <div className="p-6 pt-20 max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold mb-1">StockFlow</h1>
-      <p className="text-gray-500 mb-8">Gestión de inventario y ventas</p>
+    <div className="min-h-screen bg-[#F4EDE4] p-6 pt-24">
+      <div className="max-w-3xl mx-auto">
+        <h1 className="text-3xl font-bold text-[#1C140F] mb-1">StockFlow</h1>
+        <p className="text-[#8A7160] mb-10">Gestión de inventario y ventas</p>
 
-      <div className="grid grid-cols-2 gap-4">
-        <Link
-          to="/inventario"
-          className="border rounded-lg p-6 hover:bg-blue-50 hover:border-blue-400 transition text-center"
-        >
-          <div className="text-4xl mb-2">📦</div>
-          <p className="font-semibold text-lg">Inventario</p>
-          <p className="text-sm text-gray-500">Ver stock, crear y editar productos</p>
-        </Link>
+        <div className="grid grid-cols-2 gap-4">
+          <Link
+            to="/inventario"
+            className="bg-white border border-[#E4D9CB] rounded-2xl p-8 text-center
+              hover:border-[#3B2418] hover:shadow-lg transition"
+          >
+            <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-[#F4EDE4] flex items-center justify-center">
+              <Package size={26} className="text-[#3B2418]" />
+            </div>
+            <p className="font-semibold text-lg text-[#1C140F]">Inventario</p>
+            <p className="text-sm text-[#8A7160] mt-1">Ver stock, crear y editar productos</p>
+          </Link>
 
-        <Link
-          to="/ventas"
-          className="border rounded-lg p-6 hover:bg-blue-50 hover:border-blue-400 transition text-center"
-        >
-          <div className="text-4xl mb-2">🛒</div>
-          <p className="font-semibold text-lg">Ventas</p>
-          <p className="text-sm text-gray-500">Registrar una nueva venta</p>
-        </Link>
-      </div>
+          <Link
+            to="/ventas"
+            className="bg-white border border-[#E4D9CB] rounded-2xl p-8 text-center
+              hover:border-[#3B2418] hover:shadow-lg transition"
+          >
+            <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-[#F4EDE4] flex items-center justify-center">
+              <ShoppingCart size={26} className="text-[#3B2418]" />
+            </div>
+            <p className="font-semibold text-lg text-[#1C140F]">Ventas</p>
+            <p className="text-sm text-[#8A7160] mt-1">Registrar una nueva venta</p>
+          </Link>
+        </div>
 
-      <div className="mt-4">
         <Link
           to="/reportes"
-          className="block border rounded-lg p-4 hover:bg-blue-50 hover:border-blue-400 transition text-center"
+          className="mt-4 flex items-center gap-4 bg-white border border-[#E4D9CB] rounded-2xl p-5
+            hover:border-[#3B2418] hover:shadow-lg transition"
         >
-          <p className="font-semibold">📊 Reportes</p>
-          <p className="text-sm text-gray-500">Ventas diarias, mensuales y exportación</p>
+          <div className="w-12 h-12 shrink-0 rounded-full bg-[#3B2418] flex items-center justify-center">
+            <BarChart3 size={22} className="text-[#F4EDE4]" />
+          </div>
+          <div className="text-left">
+            <p className="font-semibold text-[#1C140F]">Reportes</p>
+            <p className="text-sm text-[#8A7160]">Ventas diarias, mensuales y exportación</p>
+          </div>
         </Link>
       </div>
     </div>

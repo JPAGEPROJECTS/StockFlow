@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useMemo } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { getProductsForSale, getCategories } from '../services/productService'
 import { getCustomers, createSale, addSaleItem } from '../services/salesService'
+import { Search, X, Minus, Plus } from 'lucide-react'
 
 // Quita acentos y normaliza para que "cafe" encuentre "café", etc.
 const normalizar = (str) =>
@@ -226,194 +227,211 @@ export default function Ventas() {
   }
 
   return (
-    <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Columna Izquierda: Buscador y lista de productos */}
-      <div className="lg:col-span-2 relative">
-        <h1 className="text-xl font-bold mb-4">Punto de Venta</h1>
+    <div className="min-h-screen bg-[#F4EDE4]">
+      <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Columna Izquierda: Buscador y lista de productos */}
+        <div className="lg:col-span-2 relative">
+          <h1 className="text-xl font-bold mb-4 text-[#1C140F]">Punto de Venta</h1>
 
-        {/* Notificación flotante (Toast) */}
-        {toast && (
-          <div className="fixed top-4 right-4 bg-gray-900 text-white px-4 py-2 rounded shadow-lg z-50 text-sm animate-fade-in">
-            {toast}
-          </div>
-        )}
+          {/* Notificación flotante (Toast) */}
+          {toast && (
+            <div className="fixed top-4 right-4 bg-[#3B2418] text-[#F4EDE4] px-4 py-2 rounded-2xl shadow-lg z-50 text-sm animate-fade-in">
+              {toast}
+            </div>
+          )}
 
-        {/* Buscador + Filtros */}
-        <form onSubmit={handleBuscarSubmit} className="flex flex-col sm:flex-row gap-2 mb-2">
-          <div className="relative flex-1">
-            <button
-              type="submit"
-              aria-label="Buscar"
-              title="Buscar"
-              className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600 transition p-1"
-            >
-              🔍
-            </button>
-            <input
-              ref={searchInputRef}
-              placeholder="Buscar por nombre, SKU, categoría o ID... (atajo: /)"
-              value={busqueda}
-              onChange={e => setBusqueda(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Escape') setBusqueda('') }}
-              className="border p-2 pl-9 pr-8 w-full rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            {busqueda && (
+          {/* Buscador + Filtros */}
+          <form onSubmit={handleBuscarSubmit} className="flex flex-col sm:flex-row gap-2 mb-2">
+            <div className="relative flex-1">
               <button
-                type="button"
-                aria-label="Limpiar búsqueda"
-                title="Limpiar búsqueda"
-                onClick={() => { setBusqueda(''); searchInputRef.current?.focus() }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-600 transition px-1"
+                type="submit"
+                aria-label="Buscar"
+                title="Buscar"
+                className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center justify-center w-6 h-6 rounded-full bg-[#F4EDE4] text-[#3B2418] hover:shadow-md transition"
               >
-                ✕
+                <Search size={13} />
+              </button>
+              <input
+                ref={searchInputRef}
+                placeholder="Buscar por nombre, SKU, categoría o ID... (atajo: /)"
+                value={busqueda}
+                onChange={e => setBusqueda(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Escape') setBusqueda('') }}
+                className="border border-[#E4D9CB] bg-white p-2 pl-11 pr-9 w-full rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30"
+              />
+              {busqueda && (
+                <button
+                  type="button"
+                  aria-label="Limpiar búsqueda"
+                  title="Limpiar búsqueda"
+                  onClick={() => { setBusqueda(''); searchInputRef.current?.focus() }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center w-6 h-6 rounded-full bg-[#F4EDE4] text-[#3B2418] hover:shadow-md transition"
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+            <select
+              value={categoriaFiltro}
+              onChange={e => setCategoriaFiltro(e.target.value)}
+              className="border border-[#E4D9CB] bg-white p-2 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30 text-[#3B2418]"
+            >
+              <option value="">Todas las categorías</option>
+              {categorias.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <select
+              value={almacenFiltro}
+              onChange={e => setAlmacenFiltro(e.target.value)}
+              className="border border-[#E4D9CB] bg-white p-2 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30 text-[#3B2418]"
+            >
+              <option value="todos">Todos los almacenes</option>
+              {almacenes.map(a => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
+            </select>
+            <select
+              value={orden}
+              onChange={e => setOrden(e.target.value)}
+              className="border border-[#E4D9CB] bg-white p-2 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30 text-[#3B2418]"
+            >
+              {OPCIONES_ORDEN.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </form>
+
+          {/* Contador de resultados + limpiar filtros */}
+          <div className="flex justify-between items-center mb-4 text-xs text-[#3B2418]/50 h-4">
+            <span>
+              {!cargandoProductos && `${filtrados.length} de ${productos.length} productos`}
+              {!cargandoProductos && filtrados.length === 1 && busqueda && ' · Enter para agregarlo'}
+            </span>
+            {hayFiltrosActivos && (
+              <button onClick={limpiarFiltros} className="text-[#3B2418] hover:underline">
+                Limpiar filtros
               </button>
             )}
           </div>
-          <select
-            value={categoriaFiltro}
-            onChange={e => setCategoriaFiltro(e.target.value)}
-            className="border p-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">Todas las categorías</option>
-            {categorias.map(c => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-          <select
-            value={almacenFiltro}
-            onChange={e => setAlmacenFiltro(e.target.value)}
-            className="border p-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="todos">Todos los almacenes</option>
-            {almacenes.map(a => (
-              <option key={a.id} value={a.id}>{a.name}</option>
-            ))}
-          </select>
-          <select
-            value={orden}
-            onChange={e => setOrden(e.target.value)}
-            className="border p-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {OPCIONES_ORDEN.map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-        </form>
 
-        {/* Contador de resultados + limpiar filtros */}
-        <div className="flex justify-between items-center mb-4 text-xs text-gray-400 h-4">
-          <span>
-            {!cargandoProductos && `${filtrados.length} de ${productos.length} productos`}
-            {!cargandoProductos && filtrados.length === 1 && busqueda && ' · Enter para agregarlo'}
-          </span>
-          {hayFiltrosActivos && (
-            <button onClick={limpiarFiltros} className="text-blue-600 hover:underline">
-              Limpiar filtros
-            </button>
+          {/* Lista de productos filtrados */}
+          {cargandoProductos ? (
+            <p className="text-[#3B2418]/40 text-sm text-center py-8">Cargando catálogo...</p>
+          ) : filtrados.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-[#3B2418]/40 text-sm">
+                {productos.length === 0 ? 'No hay productos con stock disponible.' : 'Sin resultados para tu búsqueda.'}
+              </p>
+              {hayFiltrosActivos && productos.length > 0 && (
+                <button onClick={limpiarFiltros} className="text-[#3B2418] text-sm hover:underline mt-2">
+                  Quitar filtros
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[70vh] overflow-auto pr-1">
+              {filtrados.map(p => {
+                const stockBajo = p.quantity <= (p.stock_min ?? 0)
+                return (
+                  <button
+                    key={`${p.product_id}-${p.warehouse_id}`}
+                    onClick={() => agregarAlCarrito(p)}
+                    className="border border-[#E4D9CB] rounded-2xl p-3 text-left hover:shadow-md hover:border-[#3B2418]/40 transition-all bg-white flex flex-col justify-between"
+                  >
+                    <div>
+                      <p className="font-medium text-[#1C140F]">{p.name}</p>
+                      <p className="text-xs text-[#3B2418]/50 mt-0.5">
+                        {p.sku} {p.category_name && `· ${p.category_name}`}
+                      </p>
+                    </div>
+                    <div className="flex justify-between items-center text-sm mt-3 pt-2 border-t border-[#E4D9CB]">
+                      <span className="text-xs text-[#3B2418]/60">{p.warehouse_name}</span>
+                      <div>
+                        <span className={stockBajo ? 'text-red-600 font-semibold' : 'text-[#3B2418]'}>
+                          Stock: {p.quantity}
+                        </span>
+                        <span className="font-bold text-[#1C140F] ml-2">${p.price}</span>
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
           )}
         </div>
 
-        {/* Lista de productos filtrados */}
-        {cargandoProductos ? (
-          <p className="text-gray-400 text-sm text-center py-8">Cargando catálogo...</p>
-        ) : filtrados.length === 0 ? (
-          <div className="text-center py-8">
-            <p className="text-gray-400 text-sm">
-              {productos.length === 0 ? 'No hay productos con stock disponible.' : 'Sin resultados para tu búsqueda.'}
-            </p>
-            {hayFiltrosActivos && productos.length > 0 && (
-              <button onClick={limpiarFiltros} className="text-blue-600 text-sm hover:underline mt-2">
-                Quitar filtros
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[70vh] overflow-auto pr-1">
-            {filtrados.map(p => {
-              const stockBajo = p.quantity <= (p.stock_min ?? 0)
-              return (
-                <button
-                  key={`${p.product_id}-${p.warehouse_id}`}
-                  onClick={() => agregarAlCarrito(p)}
-                  className="border rounded p-3 text-left hover:bg-blue-50 hover:border-blue-400 transition bg-white shadow-sm flex flex-col justify-between"
-                >
-                  <div>
-                    <p className="font-medium text-gray-900">{p.name}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {p.sku} {p.category_name && `· ${p.category_name}`}
-                    </p>
+        {/* Columna Derecha: Carrito y confirmación */}
+        <div className="bg-white border border-[#E4D9CB] rounded-2xl p-5 shadow-sm h-fit">
+          <h2 className="font-bold text-lg mb-4 text-[#1C140F]">Carrito</h2>
+
+          {error && <div className="bg-red-50 border border-red-200 text-red-700 p-2 rounded-2xl text-sm mb-3">{error}</div>}
+
+          {carrito.length === 0 ? (
+            <p className="text-[#3B2418]/40 text-sm">Agrega productos haciendo clic en ellos.</p>
+          ) : (
+            <div className="space-y-2 mb-4 max-h-[40vh] overflow-auto pr-1">
+              {carrito.map(i => (
+                <div key={`${i.product_id}-${i.warehouse_id}`} className="border-b border-[#E4D9CB] pb-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="font-medium text-[#1C140F]">{i.name}</span>
+                    <button
+                      onClick={() => quitarDelCarrito(i.product_id, i.warehouse_id)}
+                      className="flex items-center justify-center w-6 h-6 rounded-full bg-[#F4EDE4] text-red-600 hover:shadow-md transition"
+                    >
+                      <X size={12} />
+                    </button>
                   </div>
-                  <div className="flex justify-between items-center text-sm mt-3 pt-2 border-t border-gray-100">
-                    <span className="text-xs text-gray-500">{p.warehouse_name}</span>
-                    <div>
-                      <span className={stockBajo ? 'text-red-600 font-semibold' : 'text-gray-700'}>
-                        Stock: {p.quantity}
-                      </span>
-                      <span className="font-bold text-gray-900 ml-2">${p.price}</span>
-                    </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <button
+                      onClick={() => cambiarCantidad(i.product_id, i.warehouse_id, -1)}
+                      className="flex items-center justify-center w-7 h-7 rounded-full bg-[#F4EDE4] text-[#3B2418] hover:shadow-md transition"
+                    >
+                      <Minus size={13} />
+                    </button>
+                    <span className="text-sm font-semibold text-[#1C140F] w-4 text-center">{i.cantidad}</span>
+                    <button
+                      onClick={() => cambiarCantidad(i.product_id, i.warehouse_id, 1)}
+                      className="flex items-center justify-center w-7 h-7 rounded-full bg-[#F4EDE4] text-[#3B2418] hover:shadow-md transition"
+                    >
+                      <Plus size={13} />
+                    </button>
+                    <span className="ml-auto font-medium text-[#3B2418]">${(i.price * i.cantidad).toFixed(2)}</span>
                   </div>
-                </button>
-              )
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Columna Derecha: Carrito y confirmación */}
-      <div className="border-l pl-0 lg:pl-6">
-        <h2 className="font-bold text-lg mb-4">Carrito</h2>
-
-        {error && <div className="bg-red-100 text-red-700 p-2 rounded text-sm mb-3">{error}</div>}
-
-        {carrito.length === 0 ? (
-          <p className="text-gray-400 text-sm">Agrega productos haciendo clic en ellos.</p>
-        ) : (
-          <div className="space-y-2 mb-4 max-h-[40vh] overflow-auto pr-1">
-            {carrito.map(i => (
-              <div key={`${i.product_id}-${i.warehouse_id}`} className="border-b pb-2">
-                <div className="flex justify-between text-sm">
-                  <span className="font-medium">{i.name}</span>
-                  <button onClick={() => quitarDelCarrito(i.product_id, i.warehouse_id)} className="text-red-500 hover:text-red-700">✕</button>
                 </div>
-                <div className="flex items-center gap-2 mt-1">
-                  <button onClick={() => cambiarCantidad(i.product_id, i.warehouse_id, -1)} className="border px-2 rounded hover:bg-gray-100">-</button>
-                  <span className="text-sm font-semibold">{i.cantidad}</span>
-                  <button onClick={() => cambiarCantidad(i.product_id, i.warehouse_id, 1)} className="border px-2 rounded hover:bg-gray-100">+</button>
-                  <span className="ml-auto font-medium">${(i.price * i.cantidad).toFixed(2)}</span>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
+          )}
+
+          {/* Selección de cliente */}
+          <select value={clienteId} onChange={e => setClienteId(e.target.value)} className="border border-[#E4D9CB] bg-white p-2 w-full rounded-2xl mb-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30 text-[#3B2418]">
+            <option value="">Cliente (opcional)</option>
+            {clientes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+
+          {/* Método de pago */}
+          <select value={metodoPago} onChange={e => setMetodoPago(e.target.value)} className="border border-[#E4D9CB] bg-white p-2 w-full rounded-2xl mb-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30 text-[#3B2418]">
+            <option value="cash">Efectivo</option>
+            <option value="card">Tarjeta</option>
+            <option value="transfer">Transferencia</option>
+            <option value="other">Otro</option>
+          </select>
+
+          {/* Total */}
+          <div className="flex justify-between font-bold text-lg mb-4 pt-2 border-t border-[#E4D9CB] text-[#1C140F]">
+            <span>Total</span>
+            <span>${total.toFixed(2)}</span>
           </div>
-        )}
 
-        {/* Selección de cliente */}
-        <select value={clienteId} onChange={e => setClienteId(e.target.value)} className="border p-2 w-full rounded mb-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">Cliente (opcional)</option>
-          {clientes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-
-        {/* Método de pago */}
-        <select value={metodoPago} onChange={e => setMetodoPago(e.target.value)} className="border p-2 w-full rounded mb-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="cash">Efectivo</option>
-          <option value="card">Tarjeta</option>
-          <option value="transfer">Transferencia</option>
-          <option value="other">Otro</option>
-        </select>
-
-        {/* Total */}
-        <div className="flex justify-between font-bold text-lg mb-4 pt-2 border-t">
-          <span>Total</span>
-          <span>${total.toFixed(2)}</span>
+          {/* Botón de acción */}
+          <button
+            onClick={confirmarVenta}
+            disabled={carrito.length === 0 || procesando}
+            className="bg-[#3B2418] hover:shadow-md text-[#F4EDE4] w-full py-3 rounded-2xl font-medium disabled:opacity-50 transition-all"
+          >
+            {procesando ? 'Procesando...' : 'Confirmar venta'}
+          </button>
         </div>
-
-        {/* Botón de acción */}
-        <button
-          onClick={confirmarVenta}
-          disabled={carrito.length === 0 || procesando}
-          className="bg-blue-600 hover:bg-blue-700 text-white w-full py-3 rounded font-medium disabled:opacity-50 transition"
-        >
-          {procesando ? 'Procesando...' : 'Confirmar venta'}
-        </button>
       </div>
     </div>
   )
