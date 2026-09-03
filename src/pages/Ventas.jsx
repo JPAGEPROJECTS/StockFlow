@@ -102,7 +102,7 @@ export default function Ventas() {
         warehouse_id: p.warehouse_id,
         sku: p.sku,
         name: p.name,
-        price: p.price,
+        price: p.price,        // precio base, editable después en el carrito
         cost: p.cost,
         stockDisponible: p.quantity,
         cantidad: 1
@@ -126,11 +126,23 @@ export default function Ventas() {
     }))
   }
 
+  // Permite editar el precio de venta directamente en el carrito (los precios varían por venta)
+  const cambiarPrecio = (product_id, warehouse_id, nuevoValor) => {
+    const valor = nuevoValor === '' ? '' : Number(nuevoValor)
+    if (valor !== '' && (isNaN(valor) || valor < 0)) return
+    setCarrito(carrito.map(i =>
+      i.product_id === product_id && i.warehouse_id === warehouse_id
+        ? { ...i, price: valor }
+        : i
+    ))
+  }
+
   const quitarDelCarrito = (product_id, warehouse_id) => {
     setCarrito(carrito.filter(i => !(i.product_id === product_id && i.warehouse_id === warehouse_id)))
   }
 
-  const total = carrito.reduce((sum, i) => sum + i.price * i.cantidad, 0)
+  const total = carrito.reduce((sum, i) => sum + (Number(i.price) || 0) * i.cantidad, 0)
+  const hayPreciosInvalidos = carrito.some(i => i.price === '' || i.price === null || isNaN(Number(i.price)))
 
   // Almacenes disponibles para el filtro, derivados del propio catálogo cargado
   const almacenes = useMemo(() => {
@@ -191,6 +203,10 @@ export default function Ventas() {
 
   const confirmarVenta = async () => {
     if (carrito.length === 0) return
+    if (hayPreciosInvalidos) {
+      setError('Revisa los precios del carrito: hay campos vacíos o inválidos.')
+      return
+    }
     setProcesando(true)
     setError('')
 
@@ -209,7 +225,7 @@ export default function Ventas() {
           product_id: item.product_id,
           warehouse_id: item.warehouse_id,
           quantity: item.cantidad,
-          unit_price: item.price,
+          unit_price: Number(item.price),
           unit_cost: item.cost
         })
         if (itemError) throw new Error(`Error en "${item.name}": ${itemError.message}`)
@@ -373,35 +389,54 @@ export default function Ventas() {
             <p className="text-[#3B2418]/40 text-sm">Agrega productos haciendo clic en ellos.</p>
           ) : (
             <div className="space-y-2 mb-4 max-h-[40vh] overflow-auto pr-1">
-              {carrito.map(i => (
-                <div key={`${i.product_id}-${i.warehouse_id}`} className="border-b border-[#E4D9CB] pb-2">
-                  <div className="flex justify-between text-sm gap-2">
-                    <span className="font-medium text-[#1C140F]">{i.name}</span>
-                    <button
-                      onClick={() => quitarDelCarrito(i.product_id, i.warehouse_id)}
-                      className="flex items-center justify-center w-6 h-6 rounded-full bg-[#F4EDE4] text-red-600 hover:shadow-md transition shrink-0"
-                    >
-                      <X size={12} />
-                    </button>
+              {carrito.map(i => {
+                const precioInvalido = i.price === '' || i.price === null || isNaN(Number(i.price))
+                return (
+                  <div key={`${i.product_id}-${i.warehouse_id}`} className="border-b border-[#E4D9CB] pb-2">
+                    <div className="flex justify-between text-sm gap-2">
+                      <span className="font-medium text-[#1C140F]">{i.name}</span>
+                      <button
+                        onClick={() => quitarDelCarrito(i.product_id, i.warehouse_id)}
+                        className="flex items-center justify-center w-6 h-6 rounded-full bg-[#F4EDE4] text-red-600 hover:shadow-md transition shrink-0"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <button
+                        onClick={() => cambiarCantidad(i.product_id, i.warehouse_id, -1)}
+                        className="flex items-center justify-center w-7 h-7 rounded-full bg-[#F4EDE4] text-[#3B2418] hover:shadow-md transition"
+                      >
+                        <Minus size={13} />
+                      </button>
+                      <span className="text-sm font-semibold text-[#1C140F] w-4 text-center">{i.cantidad}</span>
+                      <button
+                        onClick={() => cambiarCantidad(i.product_id, i.warehouse_id, 1)}
+                        className="flex items-center justify-center w-7 h-7 rounded-full bg-[#F4EDE4] text-[#3B2418] hover:shadow-md transition"
+                      >
+                        <Plus size={13} />
+                      </button>
+
+                      {/* Precio editable por línea de carrito */}
+                      <div className="ml-auto flex items-center gap-1">
+                        <span className="text-[#3B2418]/50 text-sm">$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={i.price}
+                          onChange={e => cambiarPrecio(i.product_id, i.warehouse_id, e.target.value)}
+                          className={`w-20 border rounded-lg px-2 py-1 text-sm text-right focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30
+                            ${precioInvalido ? 'border-red-400 bg-red-50' : 'border-[#E4D9CB] bg-white'}`}
+                        />
+                      </div>
+                    </div>
+                    <div className="text-right text-xs text-[#3B2418]/50 mt-1">
+                      Subtotal: ${precioInvalido ? '—' : (Number(i.price) * i.cantidad).toFixed(2)}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 mt-1">
-                    <button
-                      onClick={() => cambiarCantidad(i.product_id, i.warehouse_id, -1)}
-                      className="flex items-center justify-center w-7 h-7 rounded-full bg-[#F4EDE4] text-[#3B2418] hover:shadow-md transition"
-                    >
-                      <Minus size={13} />
-                    </button>
-                    <span className="text-sm font-semibold text-[#1C140F] w-4 text-center">{i.cantidad}</span>
-                    <button
-                      onClick={() => cambiarCantidad(i.product_id, i.warehouse_id, 1)}
-                      className="flex items-center justify-center w-7 h-7 rounded-full bg-[#F4EDE4] text-[#3B2418] hover:shadow-md transition"
-                    >
-                      <Plus size={13} />
-                    </button>
-                    <span className="ml-auto font-medium text-[#3B2418]">${(i.price * i.cantidad).toFixed(2)}</span>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
 
@@ -428,7 +463,7 @@ export default function Ventas() {
           {/* Botón de acción */}
           <button
             onClick={confirmarVenta}
-            disabled={carrito.length === 0 || procesando}
+            disabled={carrito.length === 0 || procesando || hayPreciosInvalidos}
             className="bg-[#3B2418] hover:shadow-md text-[#F4EDE4] w-full py-3 rounded-2xl font-medium disabled:opacity-50 transition-all"
           >
             {procesando ? 'Procesando...' : 'Confirmar venta'}
