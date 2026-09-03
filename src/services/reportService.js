@@ -8,10 +8,15 @@ export const getVentasMensuales = async () => {
   return await supabase.from('v_ventas_mensuales').select('*').limit(12)
 }
 
+// Trae cada venta con sus items (producto, cantidad, precio) para el reporte detallado
 export const getVentasDetalle = async (desde, hasta) => {
   let query = supabase
     .from('sales')
-    .select('id, created_at, payment_method, status, total, customers(name)')
+    .select(`
+      id, created_at, payment_method, status, total,
+      customers(name),
+      sale_items(quantity, unit_price, unit_cost, products(name, sku))
+    `)
     .eq('status', 'completed')
     .order('created_at', { ascending: false })
 

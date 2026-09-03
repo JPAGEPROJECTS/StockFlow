@@ -37,17 +37,54 @@ export default function Reportes() {
     exportToExcel(formateado, `ventas_${vista}`, 'Resumen')
   }
 
-  const exportarDetalle = async () => {
-    const { data, error } = await getVentasDetalle(desde, hasta)
-    if (error) return alert('Error: ' + error.message)
-    const formateado = data.map(v => ({
-      Fecha: new Date(v.created_at).toLocaleString(),
-      Cliente: v.customers?.name ?? 'Sin cliente',
-      'Método de pago': v.payment_method,
-      Total: v.total
-    }))
-    exportToExcel(formateado, 'ventas_detalle', 'Ventas')
+const exportarDetalle = async () => {
+  const { data, error } = await getVentasDetalle(desde, hasta)
+  if (error) return alert('Error: ' + error.message)
+
+  if (!data || data.length === 0) {
+    alert('No hay ventas en ese rango de fechas')
+    return
   }
+
+  // Una fila por cada producto vendido, no por venta
+  const filas = []
+  let totalGeneral = 0
+
+  data.forEach(venta => {
+    const fecha = new Date(venta.created_at).toLocaleString()
+    const cliente = venta.customers?.name ?? 'Sin cliente'
+
+    venta.sale_items.forEach(item => {
+      const subtotal = item.quantity * item.unit_price
+      totalGeneral += subtotal
+
+      filas.push({
+        Fecha: fecha,
+        Cliente: cliente,
+        Producto: item.products?.name ?? '—',
+        SKU: item.products?.sku ?? '—',
+        Cantidad: item.quantity,
+        'Precio unitario': item.unit_price,
+        Subtotal: subtotal,
+        'Método de pago': venta.payment_method
+      })
+    })
+  })
+
+  // Fila de total general al final
+  filas.push({
+    Fecha: '',
+    Cliente: '',
+    Producto: '',
+    SKU: '',
+    Cantidad: '',
+    'Precio unitario': 'TOTAL',
+    Subtotal: totalGeneral,
+    'Método de pago': ''
+  })
+
+  exportToExcel(filas, 'ventas_detalle', 'Ventas')
+}
 
   return (
     <div className="min-h-screen bg-[#F4EDE4]">
