@@ -32,9 +32,9 @@ export default function NavMenu() {
 
         {/* Izquierda: nombre */}
         <div className="flex items-center">
-        <Link to="/" className="font-['Lucida_Calligraphy','Lucida_Handwriting',cursive] italic text-lg text-[#1C140F] hover:opacity-80 transition">
-          Verónica Rivera
-        </Link>
+<Link to="/" className="font-['Lucida_Calligraphy','Lucida_Handwriting',cursive] italic text-xl text-[#1C140F] hover:opacity-80 transition">
+  Verónica Rivera
+</Link>
         </div>
 
         {/* Centro: navegación (solo desktop) */}
