@@ -2,10 +2,12 @@ import { useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Home, Package, ShoppingCart, BarChart3, LogOut, Menu, X } from 'lucide-react'
+import { Wallet } from 'lucide-react'
 
 const LINKS = [
   { to: '/', label: 'Inicio', icon: Home },
   { to: '/inventario', label: 'Inventario', icon: Package },
+  { to: '/turno', label: 'Turno', icon: Wallet },
   { to: '/ventas', label: 'Ventas', icon: ShoppingCart },
   { to: '/reportes', label: 'Reportes', icon: BarChart3 },
 ]

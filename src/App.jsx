@@ -6,6 +6,7 @@ import Inventario from './pages/Inventario'
 import Ventas from './pages/Ventas'
 import Reportes from './pages/Reportes'
 import NavMenu from './components/NavMenu'
+import Turno from './pages/Turno'
 
 function PrivateRoute({ children }) {
   const { session, loading } = useAuth()
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="/inventario" element={<PrivateRoute><Inventario /></PrivateRoute>} />
         <Route path="/ventas" element={<PrivateRoute><Ventas /></PrivateRoute>} />
         <Route path="/reportes" element={<PrivateRoute><Reportes /></PrivateRoute>} />
+        <Route path="/turno" element={<PrivateRoute><Turno /></PrivateRoute>} />
       </Routes>
     </BrowserRouter>
   )

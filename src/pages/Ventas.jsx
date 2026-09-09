@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useMemo } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { getProductsForSale, getCategories } from '../services/productService'
 import { getCustomers, createSale, addSaleItem } from '../services/salesService'
+import { getTurnoActivo } from '../services/shiftService'
 import { Search, X, Minus, Plus } from 'lucide-react'
 
 // Quita acentos y normaliza para que "cafe" encuentre "café", etc.
@@ -212,10 +213,18 @@ export default function Ventas() {
 
     try {
       const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Usuario no autenticado.')
+
+      // Verificación de turno activo antes de registrar la venta
+      const { data: turnoActivo, error: turnoError } = await getTurnoActivo(user.id)
+      if (turnoError) throw turnoError
+      if (!turnoActivo) throw new Error('Debes abrir un turno de caja antes de vender.')
+
       const { data: venta, error: saleError } = await createSale({
         customer_id: clienteId,
-        user_id: user?.id,
-        payment_method: metodoPago
+        user_id: user.id,
+        payment_method: metodoPago,
+        shift_id: turnoActivo.id
       })
       if (saleError) throw saleError
 

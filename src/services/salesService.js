@@ -4,10 +4,10 @@ export const getCustomers = async () => {
   return await supabase.from('customers').select('*').order('name')
 }
 
-export const createSale = async ({ customer_id, user_id, payment_method }) => {
+export const createSale = async ({ customer_id, user_id, payment_method, shift_id }) => {
   return await supabase
     .from('sales')
-    .insert({ customer_id: customer_id || null, user_id, payment_method })
+    .insert({ customer_id: customer_id || null, user_id, payment_method, shift_id })
     .select()
     .single()
 }
