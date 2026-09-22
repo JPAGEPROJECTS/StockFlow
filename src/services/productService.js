@@ -40,6 +40,40 @@ export const getCategories = async () => {
   return await supabase.from('categories').select('*')
 }
 
+// Para la página /categorias: incluye cuántos productos usan cada una,
+// para poder avisar antes de borrar una que sigue en uso. products(count)
+// es un embed de PostgREST vía la FK products.category_id -> categories.id.
+export const getCategoriesConCantidad = async () => {
+  const { data, error } = await supabase
+    .from('categories')
+    .select('id, name, created_at, products(count)')
+    .order('name')
+  if (error) return { data: null, error }
+
+  const mapped = data.map(c => ({
+    id: c.id,
+    name: c.name,
+    created_at: c.created_at,
+    product_count: c.products?.[0]?.count ?? 0
+  }))
+  return { data: mapped, error: null }
+}
+
+export const createCategory = async (name) => {
+  return await supabase.from('categories').insert({ name }).select().single()
+}
+
+export const updateCategory = async (id, name) => {
+  return await supabase.from('categories').update({ name }).eq('id', id).select().single()
+}
+
+// categories.id tiene "on delete set null" en products.category_id, así
+// que borrar una categoría no borra productos: solo los deja "Sin
+// categoría".
+export const deleteCategory = async (id) => {
+  return await supabase.from('categories').delete().eq('id', id)
+}
+
 // Trae el producto completo (incluye cost y category_id, que la fila aplanada
 // de getProducts no tiene) para poder precargar el formulario al editar.
 export const getProduct = async (id) => {
@@ -76,19 +110,39 @@ export const deactivateProduct = async (id) => {
   return await supabase.from('products').update({ is_active: false }).eq('id', id)
 }
 
-// ProductModal.jsx llama a esta función con { movement_type, note }, no { type, reason }.
-// El check chk_quantity_sign exige quantity > 0 salvo para 'adjustment'.
-export const registerMovement = async ({ product_id, warehouse_id, movement_type, quantity, note }) => {
+// Se llama con { movement_type, note }, no { type, reason } (los nombres
+// que de verdad usa la tabla), para que el resto del código no tenga que
+// conocer esos nombres. El check chk_quantity_sign exige quantity > 0
+// salvo para 'adjustment', donde quantity es un DELTA (puede ser
+// negativo) que fn_apply_inventory_movement suma al stock actual — no es
+// el stock final. warehouse_to_id solo aplica (y es obligatorio) para
+// 'transfer', por chk_transfer_target.
+export const registerMovement = async ({ product_id, warehouse_id, warehouse_to_id, movement_type, quantity, note }) => {
   return await supabase
     .from('inventory_movements')
     .insert({
       product_id,
       warehouse_id,
+      warehouse_to_id: warehouse_to_id || null,
       type: movement_type,
       quantity,
       reason: note
     })
     .select()
+}
+
+// Stock actual de un producto en un almacén puntual. inventory no tiene
+// fila hasta el primer movimiento ahí, así que sin ese producto/almacén
+// devuelve 0 en vez de null (maybeSingle no truena si no hay fila).
+export const getStock = async (product_id, warehouse_id) => {
+  const { data, error } = await supabase
+    .from('inventory')
+    .select('quantity')
+    .eq('product_id', product_id)
+    .eq('warehouse_id', warehouse_id)
+    .maybeSingle()
+  if (error) return { data: null, error }
+  return { data: data?.quantity ?? 0, error: null }
 }
 
 // inventory_movements tiene dos FKs hacia warehouses (warehouse_id y warehouse_to_id),

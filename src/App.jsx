@@ -9,6 +9,7 @@ import Reportes from './pages/Reportes'
 import NavMenu from './components/NavMenu'
 import Turno from './pages/Turno'
 import Usuarios from './pages/Usuarios'
+import Categorias from './pages/Categorias'
 
 function PrivateRoute({ children }) {
   const { session, loading } = useAuth()
@@ -50,6 +51,7 @@ export default function App() {
         <Route path="/reportes" element={<PrivateRoute><Reportes /></PrivateRoute>} />
         <Route path="/turno" element={<PrivateRoute><Turno /></PrivateRoute>} />
         <Route path="/usuarios" element={<PrivateRoute><Usuarios /></PrivateRoute>} />
+        <Route path="/categorias" element={<PrivateRoute><Categorias /></PrivateRoute>} />
       </Routes>
     </BrowserRouter>
   )
