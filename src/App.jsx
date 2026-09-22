@@ -1,12 +1,14 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import Login from './pages/Login'
+import Register from './pages/Register'
 import Home from './pages/Home'
 import Inventario from './pages/Inventario'
 import Ventas from './pages/Ventas'
 import Reportes from './pages/Reportes'
 import NavMenu from './components/NavMenu'
 import Turno from './pages/Turno'
+import Usuarios from './pages/Usuarios'
 
 function PrivateRoute({ children }) {
   const { session, loading } = useAuth()
@@ -30,6 +32,10 @@ export default function App() {
           path="/login"
           element={session ? <Navigate to="/" /> : <Login />}
         />
+        <Route
+          path="/registro"
+          element={session ? <Navigate to="/" /> : <Register />}
+        />
 
         <Route
           path="/"
@@ -43,6 +49,7 @@ export default function App() {
         <Route path="/ventas" element={<PrivateRoute><Ventas /></PrivateRoute>} />
         <Route path="/reportes" element={<PrivateRoute><Reportes /></PrivateRoute>} />
         <Route path="/turno" element={<PrivateRoute><Turno /></PrivateRoute>} />
+        <Route path="/usuarios" element={<PrivateRoute><Usuarios /></PrivateRoute>} />
       </Routes>
     </BrowserRouter>
   )

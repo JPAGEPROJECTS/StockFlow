@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 export default function Login() {
@@ -135,9 +136,9 @@ export default function Login() {
 
           <p className="text-center text-xs sm:text-sm text-[#8A7160] mt-5 sm:mt-6">
             ¿Nuevo aquí?{' '}
-            <a href="#" className="text-[#3B2418] font-medium hover:underline">
+            <Link to="/registro" className="text-[#3B2418] font-medium hover:underline">
               Crear una cuenta
-            </a>
+            </Link>
           </p>
         </div>
       </div>
