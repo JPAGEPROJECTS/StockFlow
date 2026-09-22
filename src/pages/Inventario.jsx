@@ -3,6 +3,7 @@ import { getProducts, deactivateProduct } from '../services/productService'
 import { exportToExcel } from '../services/exportService'
 import ProductModal from '../components/ProductModal'
 import MovementsModal from '../components/MovementsModal'
+import MovementFormModal from '../components/MovementFormModal'
 import NavMenu from '../components/NavMenu'
 import {
   Package,
@@ -16,6 +17,7 @@ import {
   Trash2,
   ChevronUp,
   ChevronDown,
+  PackagePlus,
 } from 'lucide-react'
 
 export default function Inventario() {
@@ -32,6 +34,7 @@ export default function Inventario() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editando, setEditando] = useState(null)
   const [verMovimientos, setVerMovimientos] = useState(null)
+  const [registrandoMovimiento, setRegistrandoMovimiento] = useState(null)
 
   useEffect(() => { cargar() }, [])
 
@@ -270,8 +273,15 @@ export default function Inventario() {
                     <td className="p-3">
                       <div className="flex gap-2">
                         <button
+                          onClick={() => setRegistrandoMovimiento(p)}
+                          title="Registrar movimiento"
+                          className="flex items-center justify-center w-8 h-8 rounded-full bg-[#F4EDE4] text-[#3B2418] hover:shadow-md transition-all"
+                        >
+                          <PackagePlus size={14} />
+                        </button>
+                        <button
                           onClick={() => setVerMovimientos(p.product_id)}
-                          title="Movimientos"
+                          title="Historial de movimientos"
                           className="flex items-center justify-center w-8 h-8 rounded-full bg-[#F4EDE4] text-[#3B2418] hover:shadow-md transition-all"
                         >
                           <History size={14} />
@@ -310,6 +320,13 @@ export default function Inventario() {
         )}
         {verMovimientos && (
           <MovementsModal productId={verMovimientos} onClose={() => setVerMovimientos(null)} />
+        )}
+        {registrandoMovimiento && (
+          <MovementFormModal
+            producto={registrandoMovimiento}
+            onClose={() => setRegistrandoMovimiento(null)}
+            onSaved={cargar}
+          />
         )}
       </div>
     </div>
