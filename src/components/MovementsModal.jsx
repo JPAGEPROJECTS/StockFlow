@@ -9,6 +9,23 @@ const ETIQUETAS_TIPO = {
   transfer: { label: 'Transferencia', className: 'bg-blue-100 text-blue-700' }
 }
 
+// fn_apply_sale_item (schema_tienda.sql) registra la salida por venta con
+// type='out' — no hay un tipo de movimiento propio para "venta" en el
+// enum — así que se distingue de una salida manual por el prefijo fijo
+// que le pone a la nota, y se le da un color propio para reconocerla de
+// un vistazo.
+const esSalidaPorVenta = (m) => m.type === 'out' && m.reason?.startsWith('Venta ')
+
+// quantity siempre se guarda positivo para 'in'/'out'/'transfer'
+// (chk_quantity_sign lo exige); el signo real depende del type, no del
+// número. Solo 'adjustment' guarda un delta con signo propio en la BD
+// (puede ser negativo), así que ese se muestra tal cual.
+const formatearCantidad = (m) => {
+  if (m.type === 'in') return { texto: `+${m.quantity}`, positivo: true }
+  if (m.type === 'out' || m.type === 'transfer') return { texto: `-${Math.abs(m.quantity)}`, positivo: false }
+  return { texto: m.quantity > 0 ? `+${m.quantity}` : `${m.quantity}`, positivo: m.quantity >= 0 }
+}
+
 export default function MovementsModal({ productId, onClose }) {
   const [movimientos, setMovimientos] = useState([])
   const [cargando, setCargando] = useState(true)
@@ -69,7 +86,10 @@ export default function MovementsModal({ productId, onClose }) {
               )}
 
               {!cargando && movimientos.map(m => {
-                const etiqueta = ETIQUETAS_TIPO[m.type] || { label: m.type, className: 'bg-[#F4EDE4] text-[#3B2418]' }
+                const etiqueta = esSalidaPorVenta(m)
+                  ? { label: 'Venta', className: 'bg-purple-100 text-purple-700' }
+                  : ETIQUETAS_TIPO[m.type] || { label: m.type, className: 'bg-[#F4EDE4] text-[#3B2418]' }
+                const cantidad = formatearCantidad(m)
                 return (
                   <tr key={m.id} className="border-b border-[#E4D9CB] last:border-0">
                     <td className="p-2 whitespace-nowrap text-[#3B2418]/70">{new Date(m.created_at).toLocaleString('es-MX')}</td>
@@ -78,7 +98,7 @@ export default function MovementsModal({ productId, onClose }) {
                         {etiqueta.label}
                       </span>
                     </td>
-                    <td className="p-2 font-medium text-[#1C140F]">{m.quantity > 0 ? `+${m.quantity}` : m.quantity}</td>
+                    <td className={`p-2 font-medium ${cantidad.positivo ? 'text-green-700' : 'text-red-600'}`}>{cantidad.texto}</td>
                     <td className="p-2 text-[#3B2418]/70">{m.warehouses?.name}</td>
                     <td className="p-2 text-[#3B2418]/70">{m.reason || '—'}</td>
                   </tr>

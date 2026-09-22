@@ -69,12 +69,21 @@ export default function Reportes() {
       .sort((a, b) => b.periodo.localeCompare(a.periodo))
   }, [items, agrupacion])
 
-  // Vista detallada: una fila por cada producto vendido, sin agrupar
+  // Vista detallada: una fila por cada producto vendido, agrupada por venta.
+  // No hay folio de venta en la base de datos, así que se asigna un número
+  // secuencial por orden cronológico (Venta 1 = la más antigua del rango
+  // filtrado) y se ordena por ese número, para que todos los productos de
+  // una misma venta queden juntos en vez de mezclados por fecha exacta.
   const detallado = useMemo(() => {
+    const idsPorFecha = [...items]
+      .sort((a, b) => a.sales.created_at.localeCompare(b.sales.created_at))
+      .map(item => item.sales.id)
+    const numeroPorVenta = new Map(Array.from(new Set(idsPorFecha)).map((id, i) => [id, i + 1]))
+
     return items
       .map(item => ({
+        numeroVenta: numeroPorVenta.get(item.sales.id),
         fecha: new Date(item.sales.created_at).toLocaleString(),
-        fechaOrden: item.sales.created_at,
         cliente: item.sales.customers?.name ?? 'Sin cliente',
         producto: item.products?.name ?? '—',
         sku: item.products?.sku ?? '—',
@@ -84,7 +93,7 @@ export default function Reportes() {
         subtotal: item.quantity * item.unit_price,
         metodoPago: item.sales.payment_method
       }))
-      .sort((a, b) => b.fechaOrden.localeCompare(a.fechaOrden))
+      .sort((a, b) => a.numeroVenta - b.numeroVenta)
   }, [items])
 
   const totalesResumen = useMemo(() => ({
@@ -136,6 +145,7 @@ export default function Reportes() {
       if (detallado.length === 0) return alert('No hay datos para exportar')
 
       const filas = detallado.map(r => ({
+        'N° Venta': r.numeroVenta,
         Fecha: r.fecha,
         Cliente: r.cliente,
         Producto: r.producto,
@@ -148,7 +158,7 @@ export default function Reportes() {
       }))
 
       filas.push({
-        Fecha: '', Cliente: '', Producto: '', SKU: '', Categoría: '',
+        'N° Venta': '', Fecha: '', Cliente: '', Producto: '', SKU: '', Categoría: '',
         Cantidad: '', 'Precio unitario': 'TOTAL',
         Subtotal: totalDetallado.toFixed(2), 'Método de pago': ''
       })
@@ -316,9 +326,10 @@ export default function Reportes() {
           <p className="text-[#3B2418]/50 text-sm">No hay ventas con estos filtros.</p>
         ) : (
           <div className="overflow-x-auto border border-[#E4D9CB] rounded-2xl bg-white shadow-sm">
-            <table className="w-full border-collapse min-w-[820px]">
+            <table className="w-full border-collapse min-w-[880px]">
               <thead>
                 <tr className="text-left border-b border-[#E4D9CB] bg-[#F4EDE4] text-sm text-[#3B2418]/70">
+                  <th className="p-3 whitespace-nowrap">N° Venta</th>
                   <th className="p-3 whitespace-nowrap">Fecha</th>
                   <th className="p-3 whitespace-nowrap">Cliente</th>
                   <th className="p-3 whitespace-nowrap">Producto</th>
@@ -331,23 +342,32 @@ export default function Reportes() {
                 </tr>
               </thead>
               <tbody>
-                {detallado.map((r, i) => (
-                  <tr key={i} className="border-b border-[#E4D9CB] last:border-0 text-sm">
-                    <td className="p-3 text-[#1C140F] whitespace-nowrap">{r.fecha}</td>
-                    <td className="p-3 text-[#3B2418] whitespace-nowrap">{r.cliente}</td>
-                    <td className="p-3 text-[#3B2418] whitespace-nowrap">{r.producto}</td>
-                    <td className="p-3 text-[#3B2418]/60 whitespace-nowrap">{r.sku}</td>
-                    <td className="p-3 text-[#3B2418]/60 whitespace-nowrap">{r.categoria}</td>
-                    <td className="p-3 text-[#3B2418]">{r.cantidad}</td>
-                    <td className="p-3 text-[#3B2418] whitespace-nowrap">${r.precioUnitario.toFixed(2)}</td>
-                    <td className="p-3 font-medium text-[#1C140F] whitespace-nowrap">${r.subtotal.toFixed(2)}</td>
-                    <td className="p-3 text-[#3B2418]/60 whitespace-nowrap">{r.metodoPago}</td>
-                  </tr>
-                ))}
+                {detallado.map((r, i) => {
+                  const nuevaVenta = i === 0 || detallado[i - 1].numeroVenta !== r.numeroVenta
+                  return (
+                    <tr
+                      key={i}
+                      className={`border-b border-[#E4D9CB] last:border-0 text-sm ${nuevaVenta ? 'border-t-2 border-t-[#3B2418]/20' : ''}`}
+                    >
+                      <td className="p-3 text-[#3B2418]/70 whitespace-nowrap">
+                        {nuevaVenta ? `#${r.numeroVenta}` : ''}
+                      </td>
+                      <td className="p-3 text-[#1C140F] whitespace-nowrap">{r.fecha}</td>
+                      <td className="p-3 text-[#3B2418] whitespace-nowrap">{r.cliente}</td>
+                      <td className="p-3 text-[#3B2418] whitespace-nowrap">{r.producto}</td>
+                      <td className="p-3 text-[#3B2418]/60 whitespace-nowrap">{r.sku}</td>
+                      <td className="p-3 text-[#3B2418]/60 whitespace-nowrap">{r.categoria}</td>
+                      <td className="p-3 text-[#3B2418]">{r.cantidad}</td>
+                      <td className="p-3 text-[#3B2418] whitespace-nowrap">${r.precioUnitario.toFixed(2)}</td>
+                      <td className="p-3 font-medium text-[#1C140F] whitespace-nowrap">${r.subtotal.toFixed(2)}</td>
+                      <td className="p-3 text-[#3B2418]/60 whitespace-nowrap">{r.metodoPago}</td>
+                    </tr>
+                  )
+                })}
               </tbody>
               <tfoot>
                 <tr className="bg-[#F4EDE4] font-semibold text-sm">
-                  <td className="p-3 text-[#1C140F]" colSpan={7}>TOTAL</td>
+                  <td className="p-3 text-[#1C140F]" colSpan={8}>TOTAL</td>
                   <td className="p-3 text-green-700">${totalDetallado.toFixed(2)}</td>
                   <td className="p-3"></td>
                 </tr>
