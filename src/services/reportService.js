@@ -26,18 +26,20 @@ export const getVentasDetalle = async (desde, hasta) => {
   return await query
 }
 
-// Trae cada item de venta con su categoría y fecha, filtrable por rango y categoría
-export const getVentasDetalladoFiltrado = async (desde, hasta, categoriaId) => {
+// Trae cada item de venta con su categoría, fecha y cajera (sales.user_id),
+// filtrable por rango, categoría y cajera
+export const getVentasDetalladoFiltrado = async (desde, hasta, categoriaId, cajeraId) => {
   let query = supabase
     .from('sale_items')
     .select(`
       quantity, unit_price, unit_cost,
       products!inner(name, sku, category_id, categories(name)),
-      sales!inner(id, created_at, status, payment_method, customers(name))
+      sales!inner(id, created_at, status, payment_method, user_id, customers(name), profiles(full_name))
     `)
     .eq('sales.status', 'completed')
 
   if (categoriaId) query = query.eq('products.category_id', categoriaId)
+  if (cajeraId) query = query.eq('sales.user_id', cajeraId)
   if (desde) query = query.gte('sales.created_at', desde)
   if (hasta) query = query.lte('sales.created_at', hasta + 'T23:59:59')
 

@@ -1,8 +1,11 @@
 import { useEffect, useState, useMemo } from 'react'
 import { getVentasDetalladoFiltrado } from '../services/reportService'
 import { getCategories } from '../services/productService'
+import { getUsers } from '../services/userService'
 import { exportToExcel } from '../services/exportService'
 import { CalendarDays, CalendarRange, FileDown, Filter, List, LayoutGrid } from 'lucide-react'
+
+const METODOS_PAGO = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia', other: 'Otro' }
 
 export default function Reportes() {
   const [items, setItems] = useState([])
@@ -10,6 +13,8 @@ export default function Reportes() {
   const [desde, setDesde] = useState('')
   const [hasta, setHasta] = useState('')
   const [categoriaFiltro, setCategoriaFiltro] = useState('')
+  const [cajeras, setCajeras] = useState([])
+  const [cajeraFiltro, setCajeraFiltro] = useState('')
   const [agrupacion, setAgrupacion] = useState('dia') // 'dia' | 'mes'
   const [vista, setVista] = useState('resumen') // 'resumen' | 'detallado'
   const [cargando, setCargando] = useState(true)
@@ -17,17 +22,19 @@ export default function Reportes() {
 
   useEffect(() => {
     getCategories().then(({ data }) => setCategorias(data || []))
+    // Incluye inactivas: pueden tener ventas históricas en el rango
+    getUsers().then(({ data }) => setCajeras(data || []))
     cargar()
   }, [])
 
   useEffect(() => {
     cargar()
-  }, [desde, hasta, categoriaFiltro])
+  }, [desde, hasta, categoriaFiltro, cajeraFiltro])
 
   const cargar = async () => {
     setCargando(true)
     setError('')
-    const { data, error } = await getVentasDetalladoFiltrado(desde, hasta, categoriaFiltro || null)
+    const { data, error } = await getVentasDetalladoFiltrado(desde, hasta, categoriaFiltro || null, cajeraFiltro || null)
     if (error) {
       setError('No se pudo cargar el reporte: ' + error.message)
       setItems([])
@@ -37,18 +44,24 @@ export default function Reportes() {
     setCargando(false)
   }
 
-  // Vista resumen: agrupado por día/mes
+  // Vista resumen: agrupado por día/mes y cajera (una fila por cada
+  // combinación). La clave usa user_id y no el nombre, que puede repetirse.
   const agrupado = useMemo(() => {
     const grupos = new Map()
 
     items.forEach(item => {
       const fecha = new Date(item.sales.created_at)
-      const clave = agrupacion === 'dia'
+      const periodo = agrupacion === 'dia'
         ? fecha.toISOString().slice(0, 10)
         : fecha.toISOString().slice(0, 7)
+      const clave = `${periodo}|${item.sales.user_id ?? ''}`
 
       if (!grupos.has(clave)) {
-        grupos.set(clave, { periodo: clave, ventasIds: new Set(), unidades: 0, ingresos: 0, costos: 0 })
+        grupos.set(clave, {
+          periodo,
+          cajera: item.sales.profiles?.full_name ?? '—',
+          ventasIds: new Set(), unidades: 0, ingresos: 0, costos: 0
+        })
       }
       const g = grupos.get(clave)
       g.ventasIds.add(item.sales.id)
@@ -60,13 +73,14 @@ export default function Reportes() {
     return Array.from(grupos.values())
       .map(g => ({
         periodo: g.periodo,
+        cajera: g.cajera,
         numVentas: g.ventasIds.size,
         unidades: g.unidades,
         ingresos: g.ingresos,
         costos: g.costos,
         margen: g.ingresos - g.costos
       }))
-      .sort((a, b) => b.periodo.localeCompare(a.periodo))
+      .sort((a, b) => b.periodo.localeCompare(a.periodo) || a.cajera.localeCompare(b.cajera))
   }, [items, agrupacion])
 
   // Vista detallada: una fila por cada producto vendido, agrupada por venta.
@@ -84,6 +98,7 @@ export default function Reportes() {
       .map(item => ({
         numeroVenta: numeroPorVenta.get(item.sales.id),
         fecha: new Date(item.sales.created_at).toLocaleString(),
+        cajera: item.sales.profiles?.full_name ?? '—',
         cliente: item.sales.customers?.name ?? 'Sin cliente',
         producto: item.products?.name ?? '—',
         sku: item.products?.sku ?? '—',
@@ -112,58 +127,82 @@ export default function Reportes() {
     setDesde('')
     setHasta('')
     setCategoriaFiltro('')
+    setCajeraFiltro('')
   }
 
-  const hayFiltrosActivos = desde || hasta || categoriaFiltro
+  const hayFiltrosActivos = desde || hasta || categoriaFiltro || cajeraFiltro
 
   const exportar = () => {
     const nombreCategoria = categorias.find(c => c.id === categoriaFiltro)?.name || 'todas'
+    const nombreCajera = cajeras.find(p => p.id === cajeraFiltro)?.full_name
+    const sufijo = nombreCajera ? `${nombreCategoria}_${nombreCajera}` : nombreCategoria
+
+    // Filtros aplicados, impresos bajo el título del Excel
+    const rango = desde || hasta
+      ? `Periodo: ${desde || 'inicio'} a ${hasta || 'hoy'}`
+      : 'Periodo: todas las fechas'
+    const info = [
+      rango,
+      `Categoría: ${categoriaFiltro ? nombreCategoria : 'Todas'}`,
+      `Cajera: ${nombreCajera || 'Todas'}`
+    ]
 
     if (vista === 'resumen') {
       if (agrupado.length === 0) return alert('No hay datos para exportar')
 
-      const filas = agrupado.map(r => ({
-        Periodo: r.periodo,
-        'N° Ventas': r.numVentas,
-        Unidades: r.unidades,
-        Ingresos: r.ingresos.toFixed(2),
-        Costos: r.costos.toFixed(2),
-        Margen: r.margen.toFixed(2)
-      }))
-
-      filas.push({
-        Periodo: 'TOTAL',
-        'N° Ventas': '',
-        Unidades: totalesResumen.unidades,
-        Ingresos: totalesResumen.ingresos.toFixed(2),
-        Costos: totalesResumen.costos.toFixed(2),
-        Margen: totalesResumen.margen.toFixed(2)
+      exportToExcel(agrupado, `ventas_resumen_${agrupacion}_${sufijo}`, 'Resumen', {
+        titulo: `Reporte de ventas — Resumen por ${agrupacion === 'dia' ? 'día' : 'mes'}`,
+        info,
+        columnas: [
+          { key: 'periodo', header: agrupacion === 'dia' ? 'Día' : 'Mes' },
+          { key: 'cajera', header: 'Cajera' },
+          { key: 'numVentas', header: 'N° Ventas', tipo: 'entero' },
+          { key: 'unidades', header: 'Unidades', tipo: 'entero' },
+          { key: 'ingresos', header: 'Ingresos', tipo: 'moneda' },
+          { key: 'costos', header: 'Costos', tipo: 'moneda' },
+          { key: 'margen', header: 'Margen', tipo: 'moneda' }
+        ],
+        totales: {
+          periodo: 'TOTAL',
+          numVentas: agrupado.reduce((s, r) => s + r.numVentas, 0),
+          ...totalesResumen
+        },
+        colorTexto: (fila, key) => key === 'margen' ? (fila.margen < 0 ? 'FFB91C1C' : 'FF15803D') : undefined
       })
-
-      exportToExcel(filas, `ventas_resumen_${agrupacion}_${nombreCategoria}`, 'Reporte')
     } else {
       if (detallado.length === 0) return alert('No hay datos para exportar')
 
-      const filas = detallado.map(r => ({
-        'N° Venta': r.numeroVenta,
-        Fecha: r.fecha,
-        Cliente: r.cliente,
-        Producto: r.producto,
-        SKU: r.sku,
-        Categoría: r.categoria,
-        Cantidad: r.cantidad,
-        'Precio unitario': r.precioUnitario,
-        Subtotal: r.subtotal.toFixed(2),
-        'Método de pago': r.metodoPago
+      // El N° de venta se muestra solo en la primera fila de cada venta,
+      // igual que en la tabla; numeroVenta se conserva para agrupar.
+      const filas = detallado.map((r, i) => ({
+        ...r,
+        venta: i === 0 || detallado[i - 1].numeroVenta !== r.numeroVenta ? `#${r.numeroVenta}` : '',
+        metodoPago: METODOS_PAGO[r.metodoPago] ?? r.metodoPago
       }))
 
-      filas.push({
-        'N° Venta': '', Fecha: '', Cliente: '', Producto: '', SKU: '', Categoría: '',
-        Cantidad: '', 'Precio unitario': 'TOTAL',
-        Subtotal: totalDetallado.toFixed(2), 'Método de pago': ''
+      exportToExcel(filas, `ventas_detalle_${sufijo}`, 'Detalle', {
+        titulo: 'Reporte de ventas — Detalle',
+        info,
+        agruparPor: 'numeroVenta',
+        columnas: [
+          { key: 'venta', header: 'N° Venta', ancho: 10 },
+          { key: 'fecha', header: 'Fecha' },
+          { key: 'cajera', header: 'Cajera' },
+          { key: 'cliente', header: 'Cliente' },
+          { key: 'producto', header: 'Producto' },
+          { key: 'sku', header: 'SKU' },
+          { key: 'categoria', header: 'Categoría' },
+          { key: 'cantidad', header: 'Cantidad', tipo: 'entero' },
+          { key: 'precioUnitario', header: 'Precio unitario', tipo: 'moneda' },
+          { key: 'subtotal', header: 'Subtotal', tipo: 'moneda' },
+          { key: 'metodoPago', header: 'Método de pago' }
+        ],
+        totales: {
+          venta: 'TOTAL',
+          cantidad: detallado.reduce((s, r) => s + r.cantidad, 0),
+          subtotal: totalDetallado
+        }
       })
-
-      exportToExcel(filas, `ventas_detalle_${nombreCategoria}`, 'Detalle')
     }
   }
 
@@ -177,7 +216,7 @@ export default function Reportes() {
           <div className="flex items-center gap-2 mb-3 text-[#3B2418] font-medium text-sm">
             <Filter size={14} /> Filtros
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
             <div>
               <label className="block text-xs text-[#3B2418]/70 mb-1">Desde</label>
               <input
@@ -205,6 +244,17 @@ export default function Reportes() {
               >
                 <option value="">Todas</option>
                 {categorias.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-[#3B2418]/70 mb-1">Cajera</label>
+              <select
+                value={cajeraFiltro}
+                onChange={e => setCajeraFiltro(e.target.value)}
+                className="border border-[#E4D9CB] bg-white p-2 rounded-2xl w-full text-sm focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30 text-[#3B2418]"
+              >
+                <option value="">Todas</option>
+                {cajeras.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
               </select>
             </div>
             <div>
@@ -286,10 +336,11 @@ export default function Reportes() {
             <p className="text-[#3B2418]/50 text-sm">No hay ventas con estos filtros.</p>
           ) : (
             <div className="overflow-x-auto border border-[#E4D9CB] rounded-2xl bg-white shadow-sm">
-              <table className="w-full border-collapse min-w-[640px]">
+              <table className="w-full border-collapse min-w-[760px]">
                 <thead>
                   <tr className="text-left border-b border-[#E4D9CB] bg-[#F4EDE4] text-sm text-[#3B2418]/70">
                     <th className="p-3 whitespace-nowrap">{agrupacion === 'dia' ? 'Día' : 'Mes'}</th>
+                    <th className="p-3 whitespace-nowrap">Cajera</th>
                     <th className="p-3 whitespace-nowrap">N° Ventas</th>
                     <th className="p-3 whitespace-nowrap">Unidades</th>
                     <th className="p-3 whitespace-nowrap">Ingresos</th>
@@ -301,6 +352,7 @@ export default function Reportes() {
                   {agrupado.map((r, i) => (
                     <tr key={i} className="border-b border-[#E4D9CB] last:border-0 text-sm">
                       <td className="p-3 text-[#1C140F] whitespace-nowrap">{r.periodo}</td>
+                      <td className="p-3 text-[#3B2418] whitespace-nowrap">{r.cajera}</td>
                       <td className="p-3 text-[#3B2418]">{r.numVentas}</td>
                       <td className="p-3 text-[#3B2418]">{r.unidades}</td>
                       <td className="p-3 text-[#3B2418] whitespace-nowrap">${r.ingresos.toFixed(2)}</td>
@@ -312,6 +364,7 @@ export default function Reportes() {
                 <tfoot>
                   <tr className="bg-[#F4EDE4] font-semibold text-sm">
                     <td className="p-3 text-[#1C140F]">TOTAL</td>
+                    <td className="p-3"></td>
                     <td className="p-3"></td>
                     <td className="p-3 text-[#3B2418]">{totalesResumen.unidades}</td>
                     <td className="p-3 text-[#3B2418]">${totalesResumen.ingresos.toFixed(2)}</td>
@@ -326,11 +379,12 @@ export default function Reportes() {
           <p className="text-[#3B2418]/50 text-sm">No hay ventas con estos filtros.</p>
         ) : (
           <div className="overflow-x-auto border border-[#E4D9CB] rounded-2xl bg-white shadow-sm">
-            <table className="w-full border-collapse min-w-[880px]">
+            <table className="w-full border-collapse min-w-[980px]">
               <thead>
                 <tr className="text-left border-b border-[#E4D9CB] bg-[#F4EDE4] text-sm text-[#3B2418]/70">
                   <th className="p-3 whitespace-nowrap">N° Venta</th>
                   <th className="p-3 whitespace-nowrap">Fecha</th>
+                  <th className="p-3 whitespace-nowrap">Cajera</th>
                   <th className="p-3 whitespace-nowrap">Cliente</th>
                   <th className="p-3 whitespace-nowrap">Producto</th>
                   <th className="p-3 whitespace-nowrap">SKU</th>
@@ -353,6 +407,7 @@ export default function Reportes() {
                         {nuevaVenta ? `#${r.numeroVenta}` : ''}
                       </td>
                       <td className="p-3 text-[#1C140F] whitespace-nowrap">{r.fecha}</td>
+                      <td className="p-3 text-[#3B2418] whitespace-nowrap">{r.cajera}</td>
                       <td className="p-3 text-[#3B2418] whitespace-nowrap">{r.cliente}</td>
                       <td className="p-3 text-[#3B2418] whitespace-nowrap">{r.producto}</td>
                       <td className="p-3 text-[#3B2418]/60 whitespace-nowrap">{r.sku}</td>
@@ -367,7 +422,7 @@ export default function Reportes() {
               </tbody>
               <tfoot>
                 <tr className="bg-[#F4EDE4] font-semibold text-sm">
-                  <td className="p-3 text-[#1C140F]" colSpan={8}>TOTAL</td>
+                  <td className="p-3 text-[#1C140F]" colSpan={9}>TOTAL</td>
                   <td className="p-3 text-green-700">${totalDetallado.toFixed(2)}</td>
                   <td className="p-3"></td>
                 </tr>

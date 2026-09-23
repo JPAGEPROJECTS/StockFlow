@@ -110,10 +110,23 @@ export default function Inventario() {
     Almacén: p.warehouse_name ?? '—',
     Stock: p.stock ?? 0,
     'Stock mínimo': p.stock_min,
-    Precio: p.price,
+    Precio: Number(p.price),
     Estado: p.stock === null ? 'Sin registrar' : p.stock <= p.stock_min ? 'Stock bajo' : 'OK'
   }))
-  exportToExcel(datos, 'inventario', 'Inventario')
+  exportToExcel(datos, 'inventario', 'Inventario', {
+    titulo: 'Inventario',
+    info: [`${datos.length} productos`],
+    columnas: [
+      { key: 'SKU' },
+      { key: 'Producto' },
+      { key: 'Almacén' },
+      { key: 'Stock', tipo: 'entero' },
+      { key: 'Stock mínimo', tipo: 'entero' },
+      { key: 'Precio', tipo: 'moneda' },
+      { key: 'Estado' }
+    ],
+    colorTexto: (fila, key) => key === 'Estado' && fila.Estado !== 'OK' ? 'FFB91C1C' : undefined
+  })
 }
 
   return (

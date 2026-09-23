@@ -4,6 +4,7 @@ import {
   getCashRegisters, getTurnoActivo, abrirTurno,
   getResumenParaCierre, cerrarTurno, registrarMovimiento, getMovimientos
 } from '../services/shiftService'
+import { getUsers } from '../services/userService'
 import { DoorOpen, DoorClosed, ArrowUpCircle, ArrowDownCircle } from 'lucide-react'
 
 export default function Turno() {
@@ -12,10 +13,13 @@ export default function Turno() {
   const [cajas, setCajas] = useState([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
+  const [aviso, setAviso] = useState('')
 
   // Apertura
   const [cajaId, setCajaId] = useState('')
   const [montoApertura, setMontoApertura] = useState('')
+  const [cajeras, setCajeras] = useState([])
+  const [cajeraId, setCajeraId] = useState('')
 
   // Cierre
   const [resumen, setResumen] = useState(null)
@@ -44,19 +48,42 @@ export default function Turno() {
     const { data: c } = await getCashRegisters()
     setCajas(c || [])
     if (c?.length) setCajaId(c[0].id)
+    // Por RLS de profiles, un admin ve a todos los usuarios y un empleado
+    // solo a sí mismo, así que el selector se limita solo.
+    const { data: u } = await getUsers()
+    const activas = (u || []).filter(p => p.is_active)
+    setCajeras(activas)
+    setCajeraId(activas.some(p => p.id === uid) ? uid : (activas[0]?.id || ''))
     setCargando(false)
   }
 
   const handleAbrir = async (e) => {
     e.preventDefault()
     setError('')
-    if (!cajaId || montoApertura === '') return setError('Selecciona una caja y monto inicial.')
+    setAviso('')
+    if (!cajaId || !cajeraId || montoApertura === '') return setError('Selecciona una caja, una cajera y el monto inicial.')
+
+    // Una cajera no puede tener dos turnos abiertos: Ventas busca "el" turno
+    // abierto del usuario con maybeSingle() y fallaría con más de uno.
+    const { data: yaAbierto, error: checkError } = await getTurnoActivo(cajeraId)
+    if (checkError) return setError(checkError.message)
+    if (yaAbierto) return setError('Esa cajera ya tiene un turno abierto.')
+
     const { error } = await abrirTurno({
       cash_register_id: cajaId,
-      user_id: session.user.id,
+      user_id: cajeraId,
       opening_amount: Number(montoApertura)
     })
     if (error) return setError(error.message)
+
+    if (cajeraId !== session.user.id) {
+      // El turno queda a nombre de la otra cajera: ella lo verá (y podrá
+      // vender) al entrar con su cuenta; aquí solo se confirma la apertura.
+      const nombre = cajeras.find(p => p.id === cajeraId)?.full_name
+      setAviso(`Turno abierto para ${nombre}.`)
+      setMontoApertura('')
+      return
+    }
     cargar()
   }
 
@@ -109,6 +136,7 @@ export default function Turno() {
         <h1 className="text-lg sm:text-xl font-bold mb-4 text-[#1C140F]">Turno de caja</h1>
 
         {error && <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-2xl text-sm mb-4">{error}</div>}
+        {aviso && <div className="bg-green-50 border border-green-200 text-green-700 p-3 rounded-2xl text-sm mb-4">{aviso}</div>}
 
         {!turno ? (
           // ---- Sin turno abierto: formulario de apertura ----
@@ -124,6 +152,20 @@ export default function Turno() {
                 className="w-full border border-[#E4D9CB] bg-white p-2.5 rounded-2xl text-sm text-[#3B2418] focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30"
               >
                 {cajas.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-[#3B2418]/70 mb-1">Cajera</label>
+              <select
+                value={cajeraId}
+                onChange={e => setCajeraId(e.target.value)}
+                className="w-full border border-[#E4D9CB] bg-white p-2.5 rounded-2xl text-sm text-[#3B2418] focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30"
+              >
+                {cajeras.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.full_name}{p.id === session?.user?.id ? ' (yo)' : ''}
+                  </option>
+                ))}
               </select>
             </div>
             <div>

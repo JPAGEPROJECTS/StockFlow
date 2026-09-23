@@ -94,6 +94,15 @@ export const updateUser = async (id, { full_name, role, is_active }) => {
   return { data, error }
 }
 
+// Las contraseñas no se pueden leer (auth.users guarda solo el hash), pero
+// un admin sí puede reemplazarlas vía la RPC admin_set_user_password
+// (parche_admin_password.sql), que valida el rol dentro de la base.
+export const setUserPassword = async (id, password) => {
+  const { error } = await supabase.rpc('admin_set_user_password', { p_user_id: id, p_password: password })
+  if (error) logError('setUserPassword', error, { id })
+  return { error }
+}
+
 // Activar/desactivar rápido desde la tabla, sin abrir el modal completo.
 export const setUserActive = async (id, is_active) => {
   const { data, error } = await supabase
