@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import {
   getCashRegisters, getTurnoActivo, abrirTurno,
@@ -32,6 +32,23 @@ export default function Turno() {
   const [nuevoMovTipo, setNuevoMovTipo] = useState('ingreso')
   const [nuevoMovMonto, setNuevoMovMonto] = useState('')
   const [nuevoMovMotivo, setNuevoMovMotivo] = useState('')
+
+  // Evita dobles envíos (doble clic mientras la petición sigue en curso).
+  // El ref bloquea al instante; el estado solo sirve para deshabilitar botones.
+  const enviandoRef = useRef(false)
+  const [enviando, setEnviando] = useState(false)
+  const conBloqueo = (handler) => async (e) => {
+    e.preventDefault()
+    if (enviandoRef.current) return
+    enviandoRef.current = true
+    setEnviando(true)
+    try {
+      await handler(e)
+    } finally {
+      enviandoRef.current = false
+      setEnviando(false)
+    }
+  }
 
   useEffect(() => { cargar() }, [])
 
@@ -140,7 +157,7 @@ export default function Turno() {
 
         {!turno ? (
           // ---- Sin turno abierto: formulario de apertura ----
-          <form onSubmit={handleAbrir} className="bg-white border border-[#E4D9CB] rounded-2xl p-6 shadow-sm space-y-4">
+          <form onSubmit={conBloqueo(handleAbrir)}className="bg-white border border-[#E4D9CB] rounded-2xl p-6 shadow-sm space-y-4">
             <div className="flex items-center gap-2 text-[#3B2418] font-medium">
               <DoorOpen size={18} /> Abrir turno
             </div>
@@ -180,9 +197,10 @@ export default function Turno() {
             </div>
             <button
               type="submit"
-              className="w-full bg-[#3B2418] text-[#F4EDE4] py-3 rounded-2xl font-medium hover:shadow-md transition-all"
+              disabled={enviando}
+              className="w-full bg-[#3B2418] text-[#F4EDE4] py-3 rounded-2xl font-medium hover:shadow-md transition-all disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Abrir turno
+              {enviando ? 'Abriendo...' : 'Abrir turno'}
             </button>
           </form>
         ) : (
@@ -202,7 +220,7 @@ export default function Turno() {
             {/* Movimientos de efectivo */}
             <div className="bg-white border border-[#E4D9CB] rounded-2xl p-5 shadow-sm">
               <h2 className="font-medium text-[#1C140F] mb-3 text-sm">Movimientos de efectivo</h2>
-              <form onSubmit={handleAgregarMovimiento} className="grid grid-cols-1 sm:grid-cols-4 gap-2 mb-3">
+              <form onSubmit={conBloqueo(handleAgregarMovimiento)}className="grid grid-cols-1 sm:grid-cols-4 gap-2 mb-3">
                 <select
                   value={nuevoMovTipo}
                   onChange={e => setNuevoMovTipo(e.target.value)}
@@ -220,7 +238,7 @@ export default function Turno() {
                   placeholder="Motivo" value={nuevoMovMotivo} onChange={e => setNuevoMovMotivo(e.target.value)}
                   className="border border-[#E4D9CB] bg-white p-2 rounded-2xl text-sm text-[#1C140F] sm:col-span-1"
                 />
-                <button type="submit" className="bg-[#3B2418] text-[#F4EDE4] rounded-2xl text-sm font-medium hover:shadow-md transition-all">
+                <button type="submit" disabled={enviando} className="bg-[#3B2418] text-[#F4EDE4] rounded-2xl text-sm font-medium hover:shadow-md transition-all disabled:opacity-60 disabled:cursor-not-allowed">
                   Agregar
                 </button>
               </form>
@@ -252,7 +270,7 @@ export default function Turno() {
                 <DoorClosed size={16} /> Cerrar turno
               </button>
             ) : (
-              <form onSubmit={confirmarCierre} className="bg-white border border-[#E4D9CB] rounded-2xl p-5 shadow-sm space-y-3">
+              <form onSubmit={conBloqueo(confirmarCierre)}className="bg-white border border-[#E4D9CB] rounded-2xl p-5 shadow-sm space-y-3">
                 <h2 className="font-medium text-[#1C140F] text-sm mb-2">Resumen de cierre</h2>
                 <div className="text-sm text-[#3B2418] space-y-1">
                   <p className="flex justify-between"><span>Monto inicial</span><span>${resumen.opening_amount.toFixed(2)}</span></p>
@@ -290,8 +308,8 @@ export default function Turno() {
                   <button type="button" onClick={() => setMostrarCierre(false)} className="flex-1 py-2.5 text-sm text-[#3B2418]/60">
                     Cancelar
                   </button>
-                  <button type="submit" className="flex-1 bg-[#3B2418] text-[#F4EDE4] py-2.5 rounded-2xl font-medium text-sm hover:shadow-md transition-all">
-                    Confirmar cierre
+                  <button type="submit" disabled={enviando} className="flex-1 bg-[#3B2418] text-[#F4EDE4] py-2.5 rounded-2xl font-medium text-sm hover:shadow-md transition-all disabled:opacity-60 disabled:cursor-not-allowed">
+                    {enviando ? 'Cerrando...' : 'Confirmar cierre'}
                   </button>
                 </div>
               </form>
