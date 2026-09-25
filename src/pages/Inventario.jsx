@@ -4,11 +4,12 @@ import { exportToExcel } from '../services/exportService'
 import ProductModal from '../components/ProductModal'
 import MovementsModal from '../components/MovementsModal'
 import MovementFormModal from '../components/MovementFormModal'
+import { MuestraColor } from '../components/ColorCombobox'
 import NavMenu from '../components/NavMenu'
 import {
   Package,
   AlertTriangle,
-  DollarSign,
+  PackageX,
   FileDown,
   Plus,
   Search,
@@ -20,6 +21,8 @@ import {
   PackagePlus,
 } from 'lucide-react'
 
+const SIN_COLOR = '__sin_color'
+
 export default function Inventario() {
   const [productos, setProductos] = useState([])
   const [cargando, setCargando] = useState(true)
@@ -27,7 +30,8 @@ export default function Inventario() {
 
   const [busqueda, setBusqueda] = useState('')
   const [almacenFiltro, setAlmacenFiltro] = useState('todos')
-  const [soloStockBajo, setSoloStockBajo] = useState(false)
+  const [colorFiltro, setColorFiltro] = useState('todos') // 'todos' | SIN_COLOR | nombre del color
+  const [estadoFiltro, setEstadoFiltro] = useState('todos') // 'todos' | 'bajo' | 'agotado'
 
   const [orden, setOrden] = useState({ campo: 'name', dir: 'asc' })
 
@@ -62,15 +66,41 @@ export default function Inventario() {
     return Array.from(set)
   }, [productos])
 
+  // Colores usados en el inventario, para el filtro
+  const colores = useMemo(() => {
+    const set = new Set(productos.map(p => p.color).filter(Boolean))
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [productos])
+  const haySinColor = productos.some(p => !p.color)
+
+  // La tabla tiene una fila por producto y almacén, así que el estado del stock
+  // se calcula por producto sumando todos sus almacenes.
+  const estadoPorProducto = useMemo(() => {
+    const totales = new Map()
+    productos.forEach(p => {
+      const actual = totales.get(p.product_id) ?? { stock: 0, stock_min: p.stock_min ?? 0 }
+      totales.set(p.product_id, { ...actual, stock: actual.stock + (p.stock ?? 0) })
+    })
+    const estados = new Map()
+    totales.forEach(({ stock, stock_min }, id) => {
+      estados.set(id, stock === 0 ? 'agotado' : stock <= stock_min ? 'bajo' : 'ok')
+    })
+    return estados
+  }, [productos])
+
   // Filtrado + orden
   const filtrados = useMemo(() => {
     let resultado = productos.filter(p => {
       const coincideBusqueda =
         p.name?.toLowerCase().includes(busqueda.toLowerCase()) ||
-        p.sku?.toLowerCase().includes(busqueda.toLowerCase())
+        p.sku?.toLowerCase().includes(busqueda.toLowerCase()) ||
+        p.color?.toLowerCase().includes(busqueda.toLowerCase())
       const coincideAlmacen = almacenFiltro === 'todos' || p.warehouse_name === almacenFiltro
-      const coincideStock = !soloStockBajo || p.stock <= p.stock_min
-      return coincideBusqueda && coincideAlmacen && coincideStock
+      const coincideColor =
+        colorFiltro === 'todos' ||
+        (colorFiltro === SIN_COLOR ? !p.color : p.color === colorFiltro)
+      const coincideEstado = estadoFiltro === 'todos' || estadoPorProducto.get(p.product_id) === estadoFiltro
+      return coincideBusqueda && coincideAlmacen && coincideColor && coincideEstado
     })
 
     resultado.sort((a, b) => {
@@ -81,7 +111,7 @@ export default function Inventario() {
     })
 
     return resultado
-  }, [productos, busqueda, almacenFiltro, soloStockBajo, orden])
+  }, [productos, busqueda, almacenFiltro, colorFiltro, estadoFiltro, estadoPorProducto, orden])
 
   const cambiarOrden = (campo) => {
     setOrden(prev => ({
@@ -95,13 +125,18 @@ export default function Inventario() {
     return orden.dir === 'asc' ? '▲' : '▼'
   }
 
-  // Estadísticas rápidas
+  // Estadísticas rápidas, contando productos únicos (no filas por almacén)
   const stats = useMemo(() => {
-    const totalProductos = productos.length
-    const stockBajo = productos.filter(p => p.stock <= p.stock_min).length
-    const valorTotal = productos.reduce((acc, p) => acc + (p.stock * p.price || 0), 0)
-    return { totalProductos, stockBajo, valorTotal }
-  }, [productos])
+    const estados = Array.from(estadoPorProducto.values())
+    return {
+      totalProductos: estados.length,
+      stockBajo: estados.filter(e => e === 'bajo').length,
+      agotados: estados.filter(e => e === 'agotado').length
+    }
+  }, [estadoPorProducto])
+
+  // Las tarjetas de "stock bajo" y "agotados" funcionan como filtro (clic de nuevo lo quita)
+  const alternarEstado = (estado) => setEstadoFiltro(prev => (prev === estado ? 'todos' : estado))
 
   const exportar = () => {
   const datos = filtrados.map(p => ({
@@ -110,10 +145,23 @@ export default function Inventario() {
     Almacén: p.warehouse_name ?? '—',
     Stock: p.stock ?? 0,
     'Stock mínimo': p.stock_min,
-    Precio: p.price,
+    Precio: Number(p.price),
     Estado: p.stock === null ? 'Sin registrar' : p.stock <= p.stock_min ? 'Stock bajo' : 'OK'
   }))
-  exportToExcel(datos, 'inventario', 'Inventario')
+  exportToExcel(datos, 'inventario', 'Inventario', {
+    titulo: 'Inventario',
+    info: [`${datos.length} productos`],
+    columnas: [
+      { key: 'SKU' },
+      { key: 'Producto' },
+      { key: 'Almacén' },
+      { key: 'Stock', tipo: 'entero' },
+      { key: 'Stock mínimo', tipo: 'entero' },
+      { key: 'Precio', tipo: 'moneda' },
+      { key: 'Estado' }
+    ],
+    colorTexto: (fila, key) => key === 'Estado' && fila.Estado !== 'OK' ? 'FFB91C1C' : undefined
+  })
 }
 
   return (
@@ -158,28 +206,40 @@ export default function Inventario() {
               <p className="text-xl sm:text-2xl font-bold text-[#1C140F]">{stats.totalProductos}</p>
             </div>
           </div>
-          <div className={`border rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow flex items-center gap-4 ${stats.stockBajo > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-[#E4D9CB]'}`}>
-            <span className={`flex items-center justify-center w-11 h-11 rounded-full shrink-0 ${stats.stockBajo > 0 ? 'bg-red-100 text-red-600' : 'bg-[#F4EDE4] text-[#3B2418]'}`}>
-              <AlertTriangle size={20} />
-            </span>
-            <div>
-              <p className="text-xs sm:text-sm text-[#3B2418]/60">Con stock bajo</p>
-              <p className={`text-xl sm:text-2xl font-bold ${stats.stockBajo > 0 ? 'text-red-600' : 'text-[#1C140F]'}`}>
-                {stats.stockBajo}
-              </p>
-            </div>
-          </div>
-          <div className="bg-white border border-[#E4D9CB] rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow flex items-center gap-4">
-            <span className="flex items-center justify-center w-11 h-11 rounded-full bg-[#F4EDE4] text-[#3B2418] shrink-0">
-              <DollarSign size={20} />
-            </span>
-            <div>
-              <p className="text-xs sm:text-sm text-[#3B2418]/60">Valor total en inventario</p>
-              <p className="text-xl sm:text-2xl font-bold text-[#1C140F]">
-                ${stats.valorTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-              </p>
-            </div>
-          </div>
+          {[
+            { estado: 'bajo', titulo: 'Con stock bajo', valor: stats.stockBajo, Icono: AlertTriangle },
+            { estado: 'agotado', titulo: 'Agotados', valor: stats.agotados, Icono: PackageX }
+          ].map(({ estado, titulo, valor, Icono }) => {
+            const alerta = valor > 0
+            const activo = estadoFiltro === estado
+            return (
+              <button
+                key={estado}
+                type="button"
+                onClick={() => alternarEstado(estado)}
+                aria-pressed={activo}
+                title={activo ? 'Quitar filtro' : `Ver solo: ${titulo.toLowerCase()}`}
+                className={`border rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow flex items-center gap-4 text-left
+                  ${alerta ? 'bg-red-50 border-red-200' : 'bg-white border-[#E4D9CB]'}
+                  ${activo ? 'ring-2 ring-[#3B2418]/40' : ''}`}
+              >
+                <span className={`flex items-center justify-center w-11 h-11 rounded-full shrink-0 ${alerta ? 'bg-red-100 text-red-600' : 'bg-[#F4EDE4] text-[#3B2418]'}`}>
+                  <Icono size={20} />
+                </span>
+                <div className="flex-1">
+                  <p className="text-xs sm:text-sm text-[#3B2418]/60">{titulo}</p>
+                  <p className={`text-xl sm:text-2xl font-bold ${alerta ? 'text-red-600' : 'text-[#1C140F]'}`}>
+                    {valor}
+                  </p>
+                </div>
+                {activo && (
+                  <span className="text-[10px] sm:text-xs bg-[#3B2418] text-[#F4EDE4] px-2 py-0.5 rounded-full shrink-0">
+                    Filtrando
+                  </span>
+                )}
+              </button>
+            )
+          })}
         </div>
 
         {/* Filtros */}
@@ -189,7 +249,7 @@ export default function Inventario() {
               <Search size={16} />
             </span>
             <input
-              placeholder="Buscar por nombre o SKU..."
+              placeholder="Buscar por nombre, SKU o color..."
               value={busqueda}
               onChange={e => setBusqueda(e.target.value)}
               className="border border-[#E4D9CB] bg-white rounded-2xl p-2 pl-9 w-full text-sm focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30"
@@ -203,14 +263,31 @@ export default function Inventario() {
             <option value="todos">Todos los almacenes</option>
             {almacenes.map(a => <option key={a} value={a}>{a}</option>)}
           </select>
-          <label className="flex items-center gap-2 border border-[#E4D9CB] bg-white rounded-2xl px-3 py-2 sm:py-0 text-sm text-[#3B2418] whitespace-nowrap">
-            <input
-              type="checkbox"
-              checked={soloStockBajo}
-              onChange={e => setSoloStockBajo(e.target.checked)}
-            />
-            Solo stock bajo
-          </label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 flex pointer-events-none">
+              <MuestraColor nombre={colorFiltro === 'todos' || colorFiltro === SIN_COLOR ? '' : colorFiltro} />
+            </span>
+            <select
+              value={colorFiltro}
+              onChange={e => setColorFiltro(e.target.value)}
+              aria-label="Filtrar por color"
+              className="border border-[#E4D9CB] bg-white rounded-2xl p-2 pl-8 w-full text-sm focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30 text-[#3B2418]"
+            >
+              <option value="todos">Todos los colores</option>
+              {colores.map(c => <option key={c} value={c}>{c}</option>)}
+              {haySinColor && <option value={SIN_COLOR}>Sin color</option>}
+            </select>
+          </div>
+          <select
+            value={estadoFiltro}
+            onChange={e => setEstadoFiltro(e.target.value)}
+            aria-label="Filtrar por estado del stock"
+            className="border border-[#E4D9CB] bg-white rounded-2xl p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30 text-[#3B2418]"
+          >
+            <option value="todos">Todos los estados</option>
+            <option value="bajo">Stock bajo</option>
+            <option value="agotado">Agotados</option>
+          </select>
         </div>
 
         {/* Error */}
@@ -223,11 +300,12 @@ export default function Inventario() {
 
         {/* Tabla — scroll horizontal en pantallas chicas */}
         <div className="border border-[#E4D9CB] rounded-2xl overflow-x-auto bg-white shadow-sm hover:shadow-md transition-shadow">
-          <table className="w-full border-collapse min-w-[720px]">
+          <table className="w-full border-collapse min-w-[800px]">
             <thead>
               <tr className="text-left border-b border-[#E4D9CB] bg-[#F4EDE4] text-sm text-[#3B2418]/70">
                 <Th campo="sku" orden={orden} onClick={cambiarOrden}>SKU</Th>
                 <Th campo="name" orden={orden} onClick={cambiarOrden}>Nombre</Th>
+                <Th campo="color" orden={orden} onClick={cambiarOrden}>Color</Th>
                 <Th campo="warehouse_name" orden={orden} onClick={cambiarOrden}>Almacén</Th>
                 <Th campo="stock" orden={orden} onClick={cambiarOrden}>Stock</Th>
                 <Th campo="price" orden={orden} onClick={cambiarOrden}>Precio</Th>
@@ -236,12 +314,12 @@ export default function Inventario() {
             </thead>
             <tbody>
               {cargando && (
-                <tr><td colSpan={6} className="p-8 text-center text-[#3B2418]/40">Cargando inventario...</td></tr>
+                <tr><td colSpan={7} className="p-8 text-center text-[#3B2418]/40">Cargando inventario...</td></tr>
               )}
 
               {!cargando && filtrados.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-[#3B2418]/40">
+                  <td colSpan={7} className="p-8 text-center text-[#3B2418]/40">
                     {productos.length === 0
                       ? 'Aún no hay productos. Crea el primero con "+ Nuevo producto".'
                       : 'No se encontraron productos con esos filtros.'}
@@ -258,6 +336,16 @@ export default function Inventario() {
                   >
                     <td className="p-3 font-mono text-[#3B2418]/80">{p.sku}</td>
                     <td className="p-3 font-medium text-[#1C140F]">{p.name}</td>
+                    <td className="p-3 text-[#3B2418]">
+                      {p.color ? (
+                        <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                          <MuestraColor nombre={p.color} />
+                          {p.color}
+                        </span>
+                      ) : (
+                        <span className="text-[#3B2418]/40">—</span>
+                      )}
+                    </td>
                     <td className="p-3 text-[#3B2418]/70">{p.warehouse_name}</td>
                     <td className="p-3">
                       <span className={`inline-flex items-center gap-1 ${stockBajo ? 'text-red-600 font-semibold' : 'text-[#3B2418]'}`}>

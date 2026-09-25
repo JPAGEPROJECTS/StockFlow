@@ -10,6 +10,7 @@ import NavMenu from './components/NavMenu'
 import Turno from './pages/Turno'
 import Usuarios from './pages/Usuarios'
 import Categorias from './pages/Categorias'
+import NotFound from './pages/NotFound'
 
 function PrivateRoute({ children }) {
   const { session, loading } = useAuth()
@@ -52,6 +53,8 @@ export default function App() {
         <Route path="/turno" element={<PrivateRoute><Turno /></PrivateRoute>} />
         <Route path="/usuarios" element={<PrivateRoute><Usuarios /></PrivateRoute>} />
         <Route path="/categorias" element={<PrivateRoute><Categorias /></PrivateRoute>} />
+
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>
   )

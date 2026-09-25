@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient'
+import { siguienteSku } from '../lib/sku'
 
 // La vista v_stock_por_almacen no trae price ni stock_min (Inventario.jsx los necesita
 // para "stock bajo" y "valor total en inventario"), y usa product_name/quantity en vez
@@ -7,7 +8,7 @@ export const getProducts = async () => {
   const [{ data: stockView, error: viewError }, { data: products, error: prodError }] =
     await Promise.all([
       supabase.from('v_stock_por_almacen').select('*').order('product_name'),
-      supabase.from('products').select('id, price, stock_min')
+      supabase.from('products').select('id, price, stock_min, color')
     ])
 
   const error = viewError || prodError
@@ -25,7 +26,8 @@ export const getProducts = async () => {
       name: row.product_name,
       stock: row.quantity,
       price: info.price,
-      stock_min: info.stock_min
+      stock_min: info.stock_min,
+      color: info.color ?? null
     }
   })
 
@@ -80,6 +82,17 @@ export const getProduct = async (id) => {
   return await supabase.from('products').select('*').eq('id', id).single()
 }
 
+// Próximo SKU libre para un prefijo (ej. "VRPUL-AZL-" → "VRPUL-AZL-004").
+// Incluye productos desactivados: un SKU dado de baja nunca se reutiliza.
+export const getSiguienteSku = async (prefijo) => {
+  const { data, error } = await supabase
+    .from('products')
+    .select('sku')
+    .ilike('sku', `${prefijo}%`)
+  if (error) return { data: null, error }
+  return { data: siguienteSku(prefijo, data.map(p => p.sku)), error: null }
+}
+
 export const createProduct = async (product) => {
   return await supabase
     .from('products')
@@ -87,7 +100,8 @@ export const createProduct = async (product) => {
       ...product,
       price: Number(product.price),
       cost: Number(product.cost) || 0,
-      stock_min: Number(product.stock_min) || 0
+      stock_min: Number(product.stock_min) || 0,
+      color: product.color?.trim() || null
     })
     .select()
     .single()
@@ -100,7 +114,8 @@ export const updateProduct = async (id, updates) => {
       ...updates,
       price: Number(updates.price),
       cost: Number(updates.cost) || 0,
-      stock_min: Number(updates.stock_min) || 0
+      stock_min: Number(updates.stock_min) || 0,
+      color: updates.color?.trim() || null
     })
     .eq('id', id)
     .select()
@@ -169,7 +184,7 @@ export const getProductsForSale = async () => {
       product_id,
       warehouse_id,
       warehouses(name),
-      products!inner(sku, name, price, cost, stock_min, category_id, is_active, categories(name))
+      products!inner(sku, name, color, price, cost, stock_min, category_id, is_active, categories(name))
     `)
     .gt('quantity', 0)
     .eq('products.is_active', true)
@@ -185,6 +200,7 @@ export const getProductsForSale = async () => {
       warehouse_name: row.warehouses?.name ?? '',
       sku: row.products.sku,
       name: row.products.name,
+      color: row.products.color ?? null,
       price: row.products.price,
       cost: row.products.cost,
       stock_min: row.products.stock_min,

@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import {
   getCashRegisters, getTurnoActivo, abrirTurno,
   getResumenParaCierre, cerrarTurno, registrarMovimiento, getMovimientos
 } from '../services/shiftService'
+import { getUsers } from '../services/userService'
 import { DoorOpen, DoorClosed, ArrowUpCircle, ArrowDownCircle } from 'lucide-react'
 
 export default function Turno() {
@@ -12,10 +13,13 @@ export default function Turno() {
   const [cajas, setCajas] = useState([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
+  const [aviso, setAviso] = useState('')
 
   // Apertura
   const [cajaId, setCajaId] = useState('')
   const [montoApertura, setMontoApertura] = useState('')
+  const [cajeras, setCajeras] = useState([])
+  const [cajeraId, setCajeraId] = useState('')
 
   // Cierre
   const [resumen, setResumen] = useState(null)
@@ -28,6 +32,23 @@ export default function Turno() {
   const [nuevoMovTipo, setNuevoMovTipo] = useState('ingreso')
   const [nuevoMovMonto, setNuevoMovMonto] = useState('')
   const [nuevoMovMotivo, setNuevoMovMotivo] = useState('')
+
+  // Evita dobles envíos (doble clic mientras la petición sigue en curso).
+  // El ref bloquea al instante; el estado solo sirve para deshabilitar botones.
+  const enviandoRef = useRef(false)
+  const [enviando, setEnviando] = useState(false)
+  const conBloqueo = (handler) => async (e) => {
+    e.preventDefault()
+    if (enviandoRef.current) return
+    enviandoRef.current = true
+    setEnviando(true)
+    try {
+      await handler(e)
+    } finally {
+      enviandoRef.current = false
+      setEnviando(false)
+    }
+  }
 
   useEffect(() => { cargar() }, [])
 
@@ -44,19 +65,42 @@ export default function Turno() {
     const { data: c } = await getCashRegisters()
     setCajas(c || [])
     if (c?.length) setCajaId(c[0].id)
+    // Por RLS de profiles, un admin ve a todos los usuarios y un empleado
+    // solo a sí mismo, así que el selector se limita solo.
+    const { data: u } = await getUsers()
+    const activas = (u || []).filter(p => p.is_active)
+    setCajeras(activas)
+    setCajeraId(activas.some(p => p.id === uid) ? uid : (activas[0]?.id || ''))
     setCargando(false)
   }
 
   const handleAbrir = async (e) => {
     e.preventDefault()
     setError('')
-    if (!cajaId || montoApertura === '') return setError('Selecciona una caja y monto inicial.')
+    setAviso('')
+    if (!cajaId || !cajeraId || montoApertura === '') return setError('Selecciona una caja, una cajera y el monto inicial.')
+
+    // Una cajera no puede tener dos turnos abiertos: Ventas busca "el" turno
+    // abierto del usuario con maybeSingle() y fallaría con más de uno.
+    const { data: yaAbierto, error: checkError } = await getTurnoActivo(cajeraId)
+    if (checkError) return setError(checkError.message)
+    if (yaAbierto) return setError('Esa cajera ya tiene un turno abierto.')
+
     const { error } = await abrirTurno({
       cash_register_id: cajaId,
-      user_id: session.user.id,
+      user_id: cajeraId,
       opening_amount: Number(montoApertura)
     })
     if (error) return setError(error.message)
+
+    if (cajeraId !== session.user.id) {
+      // El turno queda a nombre de la otra cajera: ella lo verá (y podrá
+      // vender) al entrar con su cuenta; aquí solo se confirma la apertura.
+      const nombre = cajeras.find(p => p.id === cajeraId)?.full_name
+      setAviso(`Turno abierto para ${nombre}.`)
+      setMontoApertura('')
+      return
+    }
     cargar()
   }
 
@@ -109,10 +153,11 @@ export default function Turno() {
         <h1 className="text-lg sm:text-xl font-bold mb-4 text-[#1C140F]">Turno de caja</h1>
 
         {error && <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-2xl text-sm mb-4">{error}</div>}
+        {aviso && <div className="bg-green-50 border border-green-200 text-green-700 p-3 rounded-2xl text-sm mb-4">{aviso}</div>}
 
         {!turno ? (
           // ---- Sin turno abierto: formulario de apertura ----
-          <form onSubmit={handleAbrir} className="bg-white border border-[#E4D9CB] rounded-2xl p-6 shadow-sm space-y-4">
+          <form onSubmit={conBloqueo(handleAbrir)}className="bg-white border border-[#E4D9CB] rounded-2xl p-6 shadow-sm space-y-4">
             <div className="flex items-center gap-2 text-[#3B2418] font-medium">
               <DoorOpen size={18} /> Abrir turno
             </div>
@@ -127,6 +172,20 @@ export default function Turno() {
               </select>
             </div>
             <div>
+              <label className="block text-xs text-[#3B2418]/70 mb-1">Cajera</label>
+              <select
+                value={cajeraId}
+                onChange={e => setCajeraId(e.target.value)}
+                className="w-full border border-[#E4D9CB] bg-white p-2.5 rounded-2xl text-sm text-[#3B2418] focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30"
+              >
+                {cajeras.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.full_name}{p.id === session?.user?.id ? ' (yo)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
               <label className="block text-xs text-[#3B2418]/70 mb-1">Monto inicial en caja</label>
               <input
                 type="number" min="0" step="0.01"
@@ -138,9 +197,10 @@ export default function Turno() {
             </div>
             <button
               type="submit"
-              className="w-full bg-[#3B2418] text-[#F4EDE4] py-3 rounded-2xl font-medium hover:shadow-md transition-all"
+              disabled={enviando}
+              className="w-full bg-[#3B2418] text-[#F4EDE4] py-3 rounded-2xl font-medium hover:shadow-md transition-all disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Abrir turno
+              {enviando ? 'Abriendo...' : 'Abrir turno'}
             </button>
           </form>
         ) : (
@@ -160,7 +220,7 @@ export default function Turno() {
             {/* Movimientos de efectivo */}
             <div className="bg-white border border-[#E4D9CB] rounded-2xl p-5 shadow-sm">
               <h2 className="font-medium text-[#1C140F] mb-3 text-sm">Movimientos de efectivo</h2>
-              <form onSubmit={handleAgregarMovimiento} className="grid grid-cols-1 sm:grid-cols-4 gap-2 mb-3">
+              <form onSubmit={conBloqueo(handleAgregarMovimiento)}className="grid grid-cols-1 sm:grid-cols-4 gap-2 mb-3">
                 <select
                   value={nuevoMovTipo}
                   onChange={e => setNuevoMovTipo(e.target.value)}
@@ -178,7 +238,7 @@ export default function Turno() {
                   placeholder="Motivo" value={nuevoMovMotivo} onChange={e => setNuevoMovMotivo(e.target.value)}
                   className="border border-[#E4D9CB] bg-white p-2 rounded-2xl text-sm text-[#1C140F] sm:col-span-1"
                 />
-                <button type="submit" className="bg-[#3B2418] text-[#F4EDE4] rounded-2xl text-sm font-medium hover:shadow-md transition-all">
+                <button type="submit" disabled={enviando} className="bg-[#3B2418] text-[#F4EDE4] rounded-2xl text-sm font-medium hover:shadow-md transition-all disabled:opacity-60 disabled:cursor-not-allowed">
                   Agregar
                 </button>
               </form>
@@ -210,7 +270,7 @@ export default function Turno() {
                 <DoorClosed size={16} /> Cerrar turno
               </button>
             ) : (
-              <form onSubmit={confirmarCierre} className="bg-white border border-[#E4D9CB] rounded-2xl p-5 shadow-sm space-y-3">
+              <form onSubmit={conBloqueo(confirmarCierre)}className="bg-white border border-[#E4D9CB] rounded-2xl p-5 shadow-sm space-y-3">
                 <h2 className="font-medium text-[#1C140F] text-sm mb-2">Resumen de cierre</h2>
                 <div className="text-sm text-[#3B2418] space-y-1">
                   <p className="flex justify-between"><span>Monto inicial</span><span>${resumen.opening_amount.toFixed(2)}</span></p>
@@ -248,8 +308,8 @@ export default function Turno() {
                   <button type="button" onClick={() => setMostrarCierre(false)} className="flex-1 py-2.5 text-sm text-[#3B2418]/60">
                     Cancelar
                   </button>
-                  <button type="submit" className="flex-1 bg-[#3B2418] text-[#F4EDE4] py-2.5 rounded-2xl font-medium text-sm hover:shadow-md transition-all">
-                    Confirmar cierre
+                  <button type="submit" disabled={enviando} className="flex-1 bg-[#3B2418] text-[#F4EDE4] py-2.5 rounded-2xl font-medium text-sm hover:shadow-md transition-all disabled:opacity-60 disabled:cursor-not-allowed">
+                    {enviando ? 'Cerrando...' : 'Confirmar cierre'}
                   </button>
                 </div>
               </form>

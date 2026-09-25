@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { updateUser, ROLES } from '../services/userService'
+import { Eye, EyeOff, KeyRound } from 'lucide-react'
+import { updateUser, setUserPassword, ROLES } from '../services/userService'
 
 export default function UserModal({ usuario, onClose, onSaved }) {
   const [form, setForm] = useState({
@@ -7,6 +8,8 @@ export default function UserModal({ usuario, onClose, onSaved }) {
     role: usuario.role,
     is_active: usuario.is_active
   })
+  const [nuevaPassword, setNuevaPassword] = useState('')
+  const [verPassword, setVerPassword] = useState(false)
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
 
@@ -22,11 +25,20 @@ export default function UserModal({ usuario, onClose, onSaved }) {
       setError('El nombre es obligatorio.')
       return
     }
+    if (nuevaPassword && nuevaPassword.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres.')
+      return
+    }
     setGuardando(true)
 
     try {
       const { error: updError } = await updateUser(usuario.id, form)
       if (updError) throw updError
+      // Vacío = no cambiar la contraseña
+      if (nuevaPassword) {
+        const { error: passError } = await setUserPassword(usuario.id, nuevaPassword)
+        if (passError) throw passError
+      }
       onSaved()
       onClose()
     } catch (err) {
@@ -68,6 +80,35 @@ export default function UserModal({ usuario, onClose, onSaved }) {
           <input type="checkbox" name="is_active" checked={form.is_active} onChange={handleChange} />
           Cuenta aprobada / activa
         </label>
+
+        {/* La contraseña actual no se puede mostrar (Supabase solo guarda su
+            hash); aquí solo se asigna una nueva. */}
+        <div>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#3B2418]/50">
+              <KeyRound size={16} />
+            </span>
+            <input
+              type={verPassword ? 'text' : 'password'}
+              placeholder="Nueva contraseña"
+              value={nuevaPassword}
+              onChange={e => setNuevaPassword(e.target.value)}
+              autoComplete="new-password"
+              className="border border-[#E4D9CB] p-2 pl-9 pr-10 w-full rounded-2xl text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30"
+            />
+            <button
+              type="button"
+              onClick={() => setVerPassword(v => !v)}
+              aria-label={verPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-[#3B2418]/60 hover:text-[#3B2418]"
+            >
+              {verPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
+          <p className="text-xs text-[#3B2418]/50 mt-1 px-1">
+            Déjala vacía para no cambiarla. Mínimo 6 caracteres.
+          </p>
+        </div>
 
         <div className="flex gap-2 justify-end pt-2">
           <button type="button" onClick={onClose} disabled={guardando}

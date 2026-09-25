@@ -4,22 +4,27 @@ export const getCashRegisters = async () => {
   return await supabase.from('cash_registers').select('*').order('name')
 }
 
-// Turno abierto actualmente por el usuario logueado (si existe)
+// Turno abierto actualmente por el usuario logueado (si existe).
+// limit(1) evita que maybeSingle() truene si quedaron turnos abiertos
+// duplicados; se toma el más reciente.
 export const getTurnoActivo = async (user_id) => {
   return await supabase
     .from('shifts')
     .select('*, cash_registers(name)')
     .eq('user_id', user_id)
     .eq('status', 'abierto')
+    .order('opened_at', { ascending: false })
+    .limit(1)
     .maybeSingle()
 }
 
+// Sin .single(): si el turno es para otra cajera, RLS puede no dejar
+// leer la fila recién insertada y single() fallaría aunque el insert sí se hizo.
 export const abrirTurno = async ({ cash_register_id, user_id, opening_amount }) => {
   return await supabase
     .from('shifts')
     .insert({ cash_register_id, user_id, opening_amount, status: 'abierto' })
     .select()
-    .single()
 }
 
 // Calcula lo esperado en caja (apertura + ventas en efectivo del turno) antes de cerrar
