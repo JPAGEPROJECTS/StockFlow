@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { getProducts, deactivateProduct } from '../services/productService'
 import { exportToExcel } from '../services/exportService'
 import ProductModal from '../components/ProductModal'
 import MovementsModal from '../components/MovementsModal'
 import MovementFormModal from '../components/MovementFormModal'
 import { MuestraColor } from '../components/ColorCombobox'
+import { resumenStockPorProducto } from '../lib/stock'
 import NavMenu from '../components/NavMenu'
 import {
   Package,
@@ -31,16 +33,24 @@ export default function Inventario() {
   const [busqueda, setBusqueda] = useState('')
   const [almacenFiltro, setAlmacenFiltro] = useState('todos')
   const [colorFiltro, setColorFiltro] = useState('todos') // 'todos' | SIN_COLOR | nombre del color
-  const [estadoFiltro, setEstadoFiltro] = useState('todos') // 'todos' | 'bajo' | 'agotado'
+  // Accesos directos desde Inicio: ?estado=agotado|bajo filtra, ?nuevo=1 abre el formulario
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [estadoFiltro, setEstadoFiltro] = useState(() =>
+    ['bajo', 'agotado'].includes(searchParams.get('estado')) ? searchParams.get('estado') : 'todos'
+  ) // 'todos' | 'bajo' | 'agotado'
 
   const [orden, setOrden] = useState({ campo: 'name', dir: 'asc' })
 
-  const [modalOpen, setModalOpen] = useState(false)
+  const [modalOpen, setModalOpen] = useState(() => searchParams.get('nuevo') === '1')
   const [editando, setEditando] = useState(null)
   const [verMovimientos, setVerMovimientos] = useState(null)
   const [registrandoMovimiento, setRegistrandoMovimiento] = useState(null)
 
-  useEffect(() => { cargar() }, [])
+  useEffect(() => {
+    cargar()
+    // Limpia los parámetros para que recargar la página no reabra el formulario
+    if (searchParams.size > 0) setSearchParams({}, { replace: true })
+  }, [])
 
   const cargar = async () => {
     setCargando(true)
@@ -76,15 +86,8 @@ export default function Inventario() {
   // La tabla tiene una fila por producto y almacén, así que el estado del stock
   // se calcula por producto sumando todos sus almacenes.
   const estadoPorProducto = useMemo(() => {
-    const totales = new Map()
-    productos.forEach(p => {
-      const actual = totales.get(p.product_id) ?? { stock: 0, stock_min: p.stock_min ?? 0 }
-      totales.set(p.product_id, { ...actual, stock: actual.stock + (p.stock ?? 0) })
-    })
     const estados = new Map()
-    totales.forEach(({ stock, stock_min }, id) => {
-      estados.set(id, stock === 0 ? 'agotado' : stock <= stock_min ? 'bajo' : 'ok')
-    })
+    resumenStockPorProducto(productos).forEach((r, id) => estados.set(id, r.estado))
     return estados
   }, [productos])
 
