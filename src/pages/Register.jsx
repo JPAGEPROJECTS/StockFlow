@@ -1,6 +1,38 @@
 import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Eye, EyeOff } from 'lucide-react'
 import { registerUser } from '../services/userService'
+
+// Campo de contraseña con botón (ojito) para mostrarla u ocultarla
+function CampoPassword({ placeholder, value, onChange }) {
+  const [visible, setVisible] = useState(false)
+  return (
+    <div className="relative">
+      <input
+        type={visible ? 'text' : 'password'}
+        placeholder={placeholder}
+        value={value}
+        onChange={onChange}
+        required
+        autoComplete="new-password"
+        className="w-full bg-[#F4EDE4]/60 border border-[#E4D9CB] rounded-full pl-4 pr-12 py-2.5 sm:py-3
+          text-sm sm:text-base text-[#1C140F] placeholder:text-[#B3A192] focus:outline-none focus:ring-2
+          focus:ring-[#3B2418]/30 focus:border-[#3B2418] transition"
+      />
+      <button
+        type="button"
+        onClick={() => setVisible(v => !v)}
+        aria-label={visible ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+        aria-pressed={visible}
+        title={visible ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+        className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center w-8 h-8 rounded-full
+          text-[#B3A192] hover:text-[#3B2418] hover:bg-[#F4EDE4] transition"
+      >
+        {visible ? <EyeOff size={16} /> : <Eye size={16} />}
+      </button>
+    </div>
+  )
+}
 
 export default function Register() {
   const [fullName, setFullName] = useState('')
@@ -123,26 +155,16 @@ export default function Register() {
                     focus:ring-[#3B2418]/30 focus:border-[#3B2418] transition"
                 />
 
-                <input
-                  type="password"
+                <CampoPassword
                   placeholder="Contraseña"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  required
-                  className="w-full bg-[#F4EDE4]/60 border border-[#E4D9CB] rounded-full px-4 py-2.5 sm:py-3
-                    text-sm sm:text-base text-[#1C140F] placeholder:text-[#B3A192] focus:outline-none focus:ring-2
-                    focus:ring-[#3B2418]/30 focus:border-[#3B2418] transition"
                 />
 
-                <input
-                  type="password"
+                <CampoPassword
                   placeholder="Confirmar contraseña"
                   value={confirmPassword}
                   onChange={e => setConfirmPassword(e.target.value)}
-                  required
-                  className="w-full bg-[#F4EDE4]/60 border border-[#E4D9CB] rounded-full px-4 py-2.5 sm:py-3
-                    text-sm sm:text-base text-[#1C140F] placeholder:text-[#B3A192] focus:outline-none focus:ring-2
-                    focus:ring-[#3B2418]/30 focus:border-[#3B2418] transition"
                 />
 
                 <button
