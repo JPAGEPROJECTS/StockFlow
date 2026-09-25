@@ -4,10 +4,18 @@ export const getCustomers = async () => {
   return await supabase.from('customers').select('*').order('name')
 }
 
-export const createSale = async ({ customer_id, user_id, payment_method, shift_id }) => {
+// note solo se envía si trae texto (motivo del cambio de total en el punto de venta)
+export const createSale = async ({ customer_id, user_id, payment_method, shift_id, note }) => {
+  const nota = note?.trim()
   return await supabase
     .from('sales')
-    .insert({ customer_id: customer_id || null, user_id, payment_method, shift_id })
+    .insert({
+      customer_id: customer_id || null,
+      user_id,
+      payment_method,
+      shift_id,
+      ...(nota && { note: nota })
+    })
     .select()
     .single()
 }

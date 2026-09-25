@@ -34,7 +34,7 @@ export const getVentasDetalladoFiltrado = async (desde, hasta, categoriaId, caje
     .select(`
       quantity, unit_price, unit_cost,
       products!inner(name, sku, category_id, categories(name)),
-      sales!inner(id, created_at, status, payment_method, user_id, customers(name), profiles(full_name))
+      sales!inner(id, created_at, status, payment_method, user_id, note, customers(name), profiles(full_name))
     `)
     .eq('sales.status', 'completed')
 

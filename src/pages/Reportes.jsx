@@ -106,7 +106,8 @@ export default function Reportes() {
         cantidad: item.quantity,
         precioUnitario: item.unit_price,
         subtotal: item.quantity * item.unit_price,
-        metodoPago: item.sales.payment_method
+        metodoPago: item.sales.payment_method,
+        nota: item.sales.note ?? '' // motivo del cambio de total, si lo hubo
       }))
       .sort((a, b) => a.numeroVenta - b.numeroVenta)
   }, [items])
@@ -172,13 +173,17 @@ export default function Reportes() {
     } else {
       if (detallado.length === 0) return alert('No hay datos para exportar')
 
-      // El N° de venta se muestra solo en la primera fila de cada venta,
+      // El N° de venta y la nota se muestran solo en la primera fila de cada venta,
       // igual que en la tabla; numeroVenta se conserva para agrupar.
-      const filas = detallado.map((r, i) => ({
-        ...r,
-        venta: i === 0 || detallado[i - 1].numeroVenta !== r.numeroVenta ? `#${r.numeroVenta}` : '',
-        metodoPago: METODOS_PAGO[r.metodoPago] ?? r.metodoPago
-      }))
+      const filas = detallado.map((r, i) => {
+        const nuevaVenta = i === 0 || detallado[i - 1].numeroVenta !== r.numeroVenta
+        return {
+          ...r,
+          venta: nuevaVenta ? `#${r.numeroVenta}` : '',
+          nota: nuevaVenta ? r.nota : '',
+          metodoPago: METODOS_PAGO[r.metodoPago] ?? r.metodoPago
+        }
+      })
 
       exportToExcel(filas, `ventas_detalle_${sufijo}`, 'Detalle', {
         titulo: 'Reporte de ventas — Detalle',
@@ -195,7 +200,8 @@ export default function Reportes() {
           { key: 'cantidad', header: 'Cantidad', tipo: 'entero' },
           { key: 'precioUnitario', header: 'Precio unitario', tipo: 'moneda' },
           { key: 'subtotal', header: 'Subtotal', tipo: 'moneda' },
-          { key: 'metodoPago', header: 'Método de pago' }
+          { key: 'metodoPago', header: 'Método de pago' },
+          { key: 'nota', header: 'Nota', ancho: 40 }
         ],
         totales: {
           venta: 'TOTAL',
@@ -379,7 +385,7 @@ export default function Reportes() {
           <p className="text-[#3B2418]/50 text-sm">No hay ventas con estos filtros.</p>
         ) : (
           <div className="overflow-x-auto border border-[#E4D9CB] rounded-2xl bg-white shadow-sm">
-            <table className="w-full border-collapse min-w-[980px]">
+            <table className="w-full border-collapse min-w-[1160px]">
               <thead>
                 <tr className="text-left border-b border-[#E4D9CB] bg-[#F4EDE4] text-sm text-[#3B2418]/70">
                   <th className="p-3 whitespace-nowrap">N° Venta</th>
@@ -393,6 +399,7 @@ export default function Reportes() {
                   <th className="p-3 whitespace-nowrap">P. Unitario</th>
                   <th className="p-3 whitespace-nowrap">Subtotal</th>
                   <th className="p-3 whitespace-nowrap">Pago</th>
+                  <th className="p-3 whitespace-nowrap">Nota</th>
                 </tr>
               </thead>
               <tbody>
@@ -416,6 +423,9 @@ export default function Reportes() {
                       <td className="p-3 text-[#3B2418] whitespace-nowrap">${r.precioUnitario.toFixed(2)}</td>
                       <td className="p-3 font-medium text-[#1C140F] whitespace-nowrap">${r.subtotal.toFixed(2)}</td>
                       <td className="p-3 text-[#3B2418]/60 whitespace-nowrap">{r.metodoPago}</td>
+                      <td className="p-3 text-xs text-[#3B2418]/80 min-w-[180px] max-w-xs">
+                        {nuevaVenta && r.nota}
+                      </td>
                     </tr>
                   )
                 })}
@@ -424,7 +434,7 @@ export default function Reportes() {
                 <tr className="bg-[#F4EDE4] font-semibold text-sm">
                   <td className="p-3 text-[#1C140F]" colSpan={9}>TOTAL</td>
                   <td className="p-3 text-green-700">${totalDetallado.toFixed(2)}</td>
-                  <td className="p-3"></td>
+                  <td className="p-3" colSpan={2}></td>
                 </tr>
               </tfoot>
             </table>
