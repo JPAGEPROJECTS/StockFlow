@@ -363,9 +363,9 @@ export default function Ventas() {
 
   return (
     <div className="min-h-screen bg-[#F4EDE4]">
-      <div className="p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+      <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-5 lg:grid-cols-3 gap-4 sm:gap-6 items-start">
         {/* Columna Izquierda: Buscador y lista de productos */}
-        <div className="lg:col-span-2 relative">
+        <div className="md:col-span-3 lg:col-span-2 relative">
           <h1 className="text-lg sm:text-xl font-bold mb-4 text-[#1C140F]">Punto de Venta</h1>
 
           {/* Notificación flotante (Toast) */}
@@ -406,7 +406,7 @@ export default function Ventas() {
                 </button>
               )}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-2 lg:grid-cols-3 gap-2">
               <select
                 value={categoriaFiltro}
                 onChange={e => setCategoriaFiltro(e.target.value)}
@@ -430,7 +430,7 @@ export default function Ventas() {
               <select
                 value={orden}
                 onChange={e => setOrden(e.target.value)}
-                className="border border-[#E4D9CB] bg-white p-2 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30 text-[#3B2418]"
+                className="md:col-span-2 lg:col-span-1 border border-[#E4D9CB] bg-white p-2 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30 text-[#3B2418]"
               >
                 {OPCIONES_ORDEN.map(o => (
                   <option key={o.value} value={o.value}>{o.label}</option>
@@ -505,7 +505,7 @@ export default function Ventas() {
         </div>
 
         {/* Columna Derecha: Carrito y confirmación */}
-        <div className="bg-white border border-[#E4D9CB] rounded-2xl p-4 sm:p-5 shadow-sm h-fit">
+        <div className="md:col-span-2 lg:col-span-1 bg-white border border-[#E4D9CB] rounded-2xl p-4 sm:p-5 shadow-sm h-fit md:sticky md:top-20 md:max-h-[calc(100vh-6rem)] md:overflow-y-auto">
           <h2 className="font-bold text-base sm:text-lg mb-4 text-[#1C140F]">Carrito</h2>
 
           {error && <div className="bg-red-50 border border-red-200 text-red-700 p-2 rounded-2xl text-sm mb-3">{error}</div>}
