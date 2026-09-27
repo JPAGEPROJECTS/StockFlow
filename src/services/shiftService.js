@@ -104,7 +104,7 @@ export const getMovimientos = async (shift_id) => {
     .order('created_at', { ascending: false })
 }
 
-export const getHistorialTurnos = async (desde, hasta) => {
+export const getHistorialTurnos = async (desde, hasta, userId = null) => {
   let query = supabase
     .from('v_turnos_resumen')
     .select('*')
@@ -112,7 +112,37 @@ export const getHistorialTurnos = async (desde, hasta) => {
 
   if (desde) query = query.gte('opened_at', desde)
   if (hasta) query = query.lte('opened_at', hasta + 'T23:59:59')
+  if (userId) query = query.eq('user_id', userId)
 
   return await query
+}
+
+// Todo lo necesario para revisar un turno pasado: el desglose del cierre
+// (el mismo cálculo que se muestra al cerrar), las notas, los movimientos
+// de caja y las ventas registradas en él.
+export const getDetalleTurno = async (shift_id) => {
+  const [shiftRes, resumenRes, movRes, ventasRes] = await Promise.all([
+    supabase.from('shifts').select('notes').eq('id', shift_id).single(),
+    getResumenParaCierre(shift_id),
+    getMovimientos(shift_id),
+    supabase
+      .from('sales')
+      .select('id, created_at, total, payment_method, status, note, sale_items(quantity, products(name))')
+      .eq('shift_id', shift_id)
+      .order('created_at', { ascending: true })
+  ])
+
+  const error = shiftRes.error || resumenRes.error || movRes.error || ventasRes.error
+  if (error) return { data: null, error }
+
+  return {
+    data: {
+      notas: shiftRes.data?.notes ?? '',
+      resumen: resumenRes.data,
+      movimientos: movRes.data || [],
+      ventas: ventasRes.data || []
+    },
+    error: null
+  }
 }
 

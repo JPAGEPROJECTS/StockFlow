@@ -3,7 +3,8 @@ import { getVentasDetalladoFiltrado } from '../services/reportService'
 import { getCategories } from '../services/productService'
 import { getUsers } from '../services/userService'
 import { exportToExcel } from '../services/exportService'
-import { CalendarDays, CalendarRange, FileDown, Filter, List, LayoutGrid } from 'lucide-react'
+import HistorialTurnos from '../components/HistorialTurnos'
+import { CalendarDays, CalendarRange, FileDown, Filter, List, LayoutGrid, Wallet } from 'lucide-react'
 
 const METODOS_PAGO = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia', other: 'Otro' }
 
@@ -16,7 +17,8 @@ export default function Reportes() {
   const [cajeras, setCajeras] = useState([])
   const [cajeraFiltro, setCajeraFiltro] = useState('')
   const [agrupacion, setAgrupacion] = useState('dia') // 'dia' | 'mes'
-  const [vista, setVista] = useState('resumen') // 'resumen' | 'detallado'
+  const [vista, setVista] = useState('resumen') // 'resumen' | 'detallado' | 'turnos'
+  const esTurnos = vista === 'turnos'
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
 
@@ -215,14 +217,17 @@ export default function Reportes() {
   return (
     <div className="min-h-screen bg-[#F4EDE4]">
       <div className="p-4 sm:p-6">
-        <h1 className="text-lg sm:text-xl font-bold mb-4 text-[#1C140F]">Reportes de Ventas</h1>
+        <h1 className="text-lg sm:text-xl font-bold mb-4 text-[#1C140F]">
+          {esTurnos ? 'Reportes de Turnos' : 'Reportes de Ventas'}
+        </h1>
 
         {/* Barra de filtros */}
         <div className="bg-white border border-[#E4D9CB] rounded-2xl p-4 mb-4 shadow-sm">
           <div className="flex items-center gap-2 mb-3 text-[#3B2418] font-medium text-sm">
             <Filter size={14} /> Filtros
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          {/* En Turnos solo aplican fechas y cajera */}
+          <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 ${esTurnos ? 'lg:grid-cols-3' : 'lg:grid-cols-5'}`}>
             <div>
               <label className="block text-xs text-[#3B2418]/70 mb-1">Desde</label>
               <input
@@ -241,17 +246,19 @@ export default function Reportes() {
                 className="border border-[#E4D9CB] bg-white p-2 rounded-2xl w-full text-sm focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30 text-[#3B2418]"
               />
             </div>
-            <div>
-              <label className="block text-xs text-[#3B2418]/70 mb-1">Categoría</label>
-              <select
-                value={categoriaFiltro}
-                onChange={e => setCategoriaFiltro(e.target.value)}
-                className="border border-[#E4D9CB] bg-white p-2 rounded-2xl w-full text-sm focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30 text-[#3B2418]"
-              >
-                <option value="">Todas</option>
-                {categorias.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
+            {!esTurnos && (
+              <div>
+                <label className="block text-xs text-[#3B2418]/70 mb-1">Categoría</label>
+                <select
+                  value={categoriaFiltro}
+                  onChange={e => setCategoriaFiltro(e.target.value)}
+                  className="border border-[#E4D9CB] bg-white p-2 rounded-2xl w-full text-sm focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30 text-[#3B2418]"
+                >
+                  <option value="">Todas</option>
+                  {categorias.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+            )}
             <div>
               <label className="block text-xs text-[#3B2418]/70 mb-1">Cajera</label>
               <select
@@ -263,7 +270,7 @@ export default function Reportes() {
                 {cajeras.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
               </select>
             </div>
-            <div>
+            <div className={esTurnos ? 'hidden' : ''}>
               <label className="block text-xs text-[#3B2418]/70 mb-1">
                 {vista === 'resumen' ? 'Agrupar por' : 'Vista'}
               </label>
@@ -299,7 +306,7 @@ export default function Reportes() {
           )}
         </div>
 
-        {error && <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-2xl text-sm mb-4">{error}</div>}
+        {error && !esTurnos && <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-2xl text-sm mb-4">{error}</div>}
 
         {/* Toggle vista + exportar */}
         <div className="flex flex-col sm:flex-row justify-between gap-3 mb-3">
@@ -320,22 +327,35 @@ export default function Reportes() {
             >
               <List size={14} /> Detallado
             </button>
+            <button
+              onClick={() => setVista('turnos')}
+              className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-2xl font-medium text-sm transition-all ${
+                esTurnos ? 'bg-[#3B2418] text-[#F4EDE4]' : 'bg-white border border-[#E4D9CB] text-[#3B2418]'
+              }`}
+            >
+              <Wallet size={14} /> Turnos
+            </button>
           </div>
 
-          <button
-            onClick={exportar}
-            disabled={(vista === 'resumen' ? agrupado.length : detallado.length) === 0}
-            className="flex items-center justify-center gap-2 bg-[#3B2418] text-[#F4EDE4] px-4 py-2 rounded-2xl font-medium text-sm hover:shadow-md transition-all disabled:opacity-50"
-          >
-            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-[#F4EDE4] text-[#3B2418]">
-              <FileDown size={13} />
-            </span>
-            Exportar
-          </button>
+          {/* Turnos tiene su propio botón de exportar */}
+          {!esTurnos && (
+            <button
+              onClick={exportar}
+              disabled={(vista === 'resumen' ? agrupado.length : detallado.length) === 0}
+              className="flex items-center justify-center gap-2 bg-[#3B2418] text-[#F4EDE4] px-4 py-2 rounded-2xl font-medium text-sm hover:shadow-md transition-all disabled:opacity-50"
+            >
+              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-[#F4EDE4] text-[#3B2418]">
+                <FileDown size={13} />
+              </span>
+              Exportar
+            </button>
+          )}
         </div>
 
         {/* Tabla */}
-        {cargando ? (
+        {esTurnos ? (
+          <HistorialTurnos desde={desde} hasta={hasta} cajeraId={cajeraFiltro} cajeras={cajeras} />
+        ) : cargando ? (
           <p className="text-[#3B2418]/50 text-sm">Cargando...</p>
         ) : vista === 'resumen' ? (
           agrupado.length === 0 ? (
