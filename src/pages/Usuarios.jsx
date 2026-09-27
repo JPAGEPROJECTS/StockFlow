@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { getUsers, deleteUser, setUserActive } from '../services/userService'
+import { getUsers, deleteUser, setUserActive, ROLES } from '../services/userService'
 import UserModal from '../components/UserModal'
 import { Search, Pencil, Trash2, Power } from 'lucide-react'
 
@@ -65,7 +65,7 @@ export default function Usuarios() {
     })
   }, [usuarios, busqueda, estadoFiltro])
 
-  const etiquetaRol = (role) => role === 'admin' ? 'Administrador' : 'Vendedor/Cajero'
+  const etiquetaRol = (role) => ROLES.find(r => r.value === role)?.label ?? role
 
   return (
     <div className="min-h-screen bg-[#F4EDE4]">

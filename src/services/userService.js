@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabaseClient'
 
 export const ROLES = [
   { value: 'admin', label: 'Administrador' },
+  { value: 'supervisor', label: 'Supervisor' },
   { value: 'employee', label: 'Vendedor/Cajero' }
 ]
 

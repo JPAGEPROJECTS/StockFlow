@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   ShoppingCart, PackagePlus, Wallet, BarChart3, RefreshCw, Gem, CalendarRange,
   TrendingUp, TrendingDown, Receipt, PackageX, AlertTriangle,
-  Trophy, CreditCard, Clock, ArrowRight, CircleCheck, CircleAlert
+  Trophy, CreditCard, Clock, ArrowRight, CircleCheck, CircleAlert, Search
 } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { getProducts } from '../services/productService'
@@ -47,25 +47,36 @@ const resumenProductos = (venta) => {
 export default function Home() {
   const [cargando, setCargando] = useState(true)
   const [nombre, setNombre] = useState('')
+  const [rol, setRol] = useState(null)
   const [turno, setTurno] = useState({ data: null, error: null })
   const [ventas, setVentas] = useState({ data: [], error: null })
   const [items, setItems] = useState({ data: [], error: null })
   const [stock, setStock] = useState({ data: [], error: null })
 
+  // La cajera ve un inicio enfocado en su día (sus ventas, su turno, alertas de stock);
+  // admin y supervisor ven el tablero completo del negocio.
+  const esCajera = rol === 'employee'
+
   const cargar = useCallback(async () => {
     setCargando(true)
     const { data: { user } } = await supabase.auth.getUser()
 
+    // El rol decide qué datos pedir, así que el perfil va primero
+    const perfil = user ? await getPerfil(user.id) : { data: null }
+    const cajera = perfil.data?.role === 'employee'
+
     // Cada bloque maneja su propio error: si falla uno, el resto del tablero se sigue viendo
-    const [perfil, turnoRes, ventasRes, itemsRes, stockRes] = await Promise.all([
-      user ? getPerfil(user.id) : Promise.resolve({ data: null }),
+    const [turnoRes, ventasRes, itemsRes, stockRes] = await Promise.all([
       user ? getTurnoActivo(user.id) : Promise.resolve({ data: null, error: null }),
-      getVentasDesde(inicioHaceDias(Math.max(DIAS_RANKING, DIAS_GRAFICA))),
-      getItemsVendidosDesde(inicioHaceDias(DIAS_RANKING)),
+      cajera
+        ? getVentasDesde(inicioHaceDias(1), user.id) // hoy y ayer, solo las suyas
+        : getVentasDesde(inicioHaceDias(Math.max(DIAS_RANKING, DIAS_GRAFICA))),
+      cajera ? Promise.resolve({ data: [], error: null }) : getItemsVendidosDesde(inicioHaceDias(DIAS_RANKING)),
       getProducts()
     ])
 
     setNombre(perfil.data?.full_name?.split(' ')[0] || '')
+    setRol(perfil.data?.role ?? '')
     setTurno({ data: turnoRes.data, error: turnoRes.error })
     setVentas({ data: ventasRes.data || [], error: ventasRes.error })
     setItems({ data: itemsRes.data || [], error: itemsRes.error })
@@ -117,7 +128,8 @@ export default function Home() {
       metodos: Array.from(metodos, ([metodo, num]) => ({
         metodo, num, porcentaje: ventas.data.length ? (num / ventas.data.length) * 100 : 0
       })).sort((a, b) => b.num - a.num),
-      ultimas: ventas.data.slice(0, 6)
+      ultimas: ventas.data.slice(0, 6),
+      misVentasHoy: ventas.data.filter(v => claveDia(v.created_at) === claveDia(new Date())).slice(0, 8)
     }
   }, [ventas.data])
 
@@ -167,13 +179,23 @@ export default function Home() {
           </button>
         </div>
 
-        {/* Accesos rápidos */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <AccesoRapido to="/ventas" icono={ShoppingCart} titulo="Nueva venta" principal />
-          <AccesoRapido to="/inventario?nuevo=1" icono={PackagePlus} titulo="Nuevo producto" />
-          <AccesoRapido to="/turno" icono={Wallet} titulo="Turno de caja" />
-          <AccesoRapido to="/reportes" icono={BarChart3} titulo="Reportes" />
-        </div>
+        {/* Accesos rápidos (se esperan al rol para no mostrar atajos que la cajera no usa) */}
+        {rol === null ? (
+          <Esqueleto alto="h-16" />
+        ) : esCajera ? (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <AccesoRapido to="/ventas" icono={ShoppingCart} titulo="Nueva venta" principal />
+            <AccesoRapido to="/turno" icono={Wallet} titulo="Turno de caja" />
+            <AccesoRapido to="/inventario" icono={Search} titulo="Consultar stock" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <AccesoRapido to="/ventas" icono={ShoppingCart} titulo="Nueva venta" principal />
+            <AccesoRapido to="/inventario?nuevo=1" icono={PackagePlus} titulo="Nuevo producto" />
+            <AccesoRapido to="/turno" icono={Wallet} titulo="Turno de caja" />
+            <AccesoRapido to="/reportes" icono={BarChart3} titulo="Reportes" />
+          </div>
+        )}
 
         {/* Estado del turno */}
         {!cargando && !turno.error && (
@@ -207,6 +229,23 @@ export default function Home() {
         {/* Indicadores */}
         {ventas.error ? (
           <ErrorBloque texto="No se pudieron cargar las ventas." />
+        ) : esCajera ? (
+          <div className="grid grid-cols-2 gap-3">
+            <Indicador
+              titulo="Mis ventas de hoy"
+              icono={Receipt}
+              valor={kpis.hoy.num}
+              cargando={cargando}
+              comparacion={<Variacion actual={kpis.hoy.num} anterior={kpis.ayer.num} referencia="ayer" />}
+            />
+            <Indicador
+              titulo="Piezas que vendí hoy"
+              icono={Gem}
+              valor={kpis.hoy.piezas}
+              cargando={cargando}
+              comparacion={<Variacion actual={kpis.hoy.piezas} anterior={kpis.ayer.piezas} referencia="ayer" />}
+            />
+          </div>
         ) : (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <Indicador
@@ -240,159 +279,123 @@ export default function Home() {
           </div>
         )}
 
+        {/* Inicio de la cajera: sus ventas de hoy + alertas de stock */}
+        {esCajera && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+            <Tarjeta titulo="Mis ventas de hoy" icono={Clock}>
+              <ListaUltimasVentas
+                error={ventas.error}
+                cargando={cargando}
+                ventas={kpis.misVentasHoy}
+                vacio="Aún no registras ventas hoy."
+              />
+            </Tarjeta>
+            <Tarjeta
+              titulo="Alertas de inventario"
+              icono={AlertTriangle}
+              accion={{ to: '/inventario', texto: 'Consultar stock' }}
+            >
+              <ContenidoAlertas error={stock.error} cargando={cargando} alertas={alertas} />
+            </Tarjeta>
+          </div>
+        )}
+
         {/* Gráfica + inventario */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-          <Tarjeta
-            className="lg:col-span-2"
-            titulo={`Ventas por día (últimos ${DIAS_GRAFICA} días)`}
-            icono={BarChart3}
-            accion={{ to: '/reportes', texto: 'Ver reportes' }}
-          >
-            {ventas.error ? (
-              <ErrorBloque texto="No se pudo cargar la gráfica." />
-            ) : cargando ? (
-              <Esqueleto alto="h-56" />
-            ) : (
-              <GraficaVentas serie={kpis.serie} />
-            )}
-          </Tarjeta>
-
-          <Tarjeta
-            titulo="Alertas de inventario"
-            icono={AlertTriangle}
-            accion={{ to: '/inventario', texto: 'Ir a inventario' }}
-          >
-            {stock.error ? (
-              <ErrorBloque texto="No se pudo cargar el inventario." />
-            ) : cargando ? (
-              <Esqueleto alto="h-56" />
-            ) : (
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-2">
-                  <ContadorAlerta
-                    to="/inventario?estado=agotado"
-                    icono={PackageX}
-                    titulo="Agotados"
-                    valor={alertas.agotados.length}
-                  />
-                  <ContadorAlerta
-                    to="/inventario?estado=bajo"
-                    icono={AlertTriangle}
-                    titulo="Stock bajo"
-                    valor={alertas.bajos.length}
-                  />
-                </div>
-
-                {alertas.lista.length === 0 ? (
-                  <p className="flex items-center gap-2 text-sm text-[#3B2418]/70 py-4">
-                    <CircleCheck size={16} className="text-green-700" /> Todo el inventario está en orden.
-                  </p>
+        {!esCajera && (
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+              <Tarjeta
+                className="lg:col-span-2"
+                titulo={`Ventas por día (últimos ${DIAS_GRAFICA} días)`}
+                icono={BarChart3}
+                accion={{ to: '/reportes', texto: 'Ver reportes' }}
+              >
+                {ventas.error ? (
+                  <ErrorBloque texto="No se pudo cargar la gráfica." />
+                ) : cargando ? (
+                  <Esqueleto alto="h-56" />
                 ) : (
-                  <ul className="divide-y divide-[#E4D9CB]">
-                    {alertas.lista.map(r => (
-                      <li key={r.fila.product_id} className="flex items-center justify-between gap-2 py-2 text-sm">
-                        <div className="min-w-0">
-                          <p className="font-medium text-[#1C140F] truncate flex items-center gap-1.5">
-                            {r.fila.color && <MuestraColor nombre={r.fila.color} size={10} />}
-                            <span className="truncate">{r.fila.name}</span>
-                          </p>
-                          <p className="text-xs text-[#3B2418]/50 font-mono truncate">{r.fila.sku}</p>
+                  <GraficaVentas serie={kpis.serie} />
+                )}
+              </Tarjeta>
+    
+              <Tarjeta
+                titulo="Alertas de inventario"
+                icono={AlertTriangle}
+                accion={{ to: '/inventario', texto: 'Ir a inventario' }}
+              >
+                <ContenidoAlertas error={stock.error} cargando={cargando} alertas={alertas} />
+              </Tarjeta>
+            </div>
+    
+            {/* Más vendidos, métodos de pago y últimas ventas */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+              <Tarjeta titulo={`Más vendidos (${DIAS_RANKING} días)`} icono={Trophy}>
+                {items.error ? (
+                  <ErrorBloque texto="No se pudo cargar el ranking." />
+                ) : cargando ? (
+                  <Esqueleto alto="h-40" />
+                ) : topProductos.length === 0 ? (
+                  <Vacio texto="Aún no hay ventas en este periodo." />
+                ) : (
+                  <ol className="space-y-3">
+                    {topProductos.map((p, idx) => (
+                      <li key={p.sku ?? idx}>
+                        <div className="flex items-center justify-between gap-2 text-sm">
+                          <span className="flex items-center gap-2 min-w-0">
+                            <span className="text-xs text-[#3B2418]/50 w-4 shrink-0">{idx + 1}</span>
+                            {p.color && <MuestraColor nombre={p.color} size={10} />}
+                            <span className="truncate text-[#1C140F]">{p.nombre}</span>
+                          </span>
+                          <span className="shrink-0 text-xs text-[#3B2418]/70">{plural(p.piezas, 'pieza', 'piezas')}</span>
                         </div>
-                        <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full ${
-                          r.estado === 'agotado' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'
-                        }`}>
-                          {r.estado === 'agotado' ? 'Agotado' : `${r.stock} / mín. ${r.stock_min}`}
-                        </span>
+                        <BarraHorizontal porcentaje={(p.piezas / topProductos[0].piezas) * 100} />
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </Tarjeta>
+    
+              <Tarjeta titulo={`Métodos de pago (${DIAS_RANKING} días)`} icono={CreditCard}>
+                {ventas.error ? (
+                  <ErrorBloque texto="No se pudieron cargar las ventas." />
+                ) : cargando ? (
+                  <Esqueleto alto="h-40" />
+                ) : kpis.metodos.length === 0 ? (
+                  <Vacio texto="Aún no hay ventas en este periodo." />
+                ) : (
+                  <ul className="space-y-3">
+                    {kpis.metodos.map(m => (
+                      <li key={m.metodo}>
+                        <div className="flex items-center justify-between gap-2 text-sm">
+                          <span className="text-[#1C140F]">{METODOS_PAGO[m.metodo] ?? m.metodo}</span>
+                          <span className="text-xs text-[#3B2418]/70">
+                            {Math.round(m.porcentaje)}% · {plural(m.num, 'venta', 'ventas')}
+                          </span>
+                        </div>
+                        <BarraHorizontal porcentaje={m.porcentaje} />
                       </li>
                     ))}
                   </ul>
                 )}
-              </div>
-            )}
-          </Tarjeta>
-        </div>
-
-        {/* Más vendidos, métodos de pago y últimas ventas */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-          <Tarjeta titulo={`Más vendidos (${DIAS_RANKING} días)`} icono={Trophy}>
-            {items.error ? (
-              <ErrorBloque texto="No se pudo cargar el ranking." />
-            ) : cargando ? (
-              <Esqueleto alto="h-40" />
-            ) : topProductos.length === 0 ? (
-              <Vacio texto="Aún no hay ventas en este periodo." />
-            ) : (
-              <ol className="space-y-3">
-                {topProductos.map((p, idx) => (
-                  <li key={p.sku ?? idx}>
-                    <div className="flex items-center justify-between gap-2 text-sm">
-                      <span className="flex items-center gap-2 min-w-0">
-                        <span className="text-xs text-[#3B2418]/50 w-4 shrink-0">{idx + 1}</span>
-                        {p.color && <MuestraColor nombre={p.color} size={10} />}
-                        <span className="truncate text-[#1C140F]">{p.nombre}</span>
-                      </span>
-                      <span className="shrink-0 text-xs text-[#3B2418]/70">{plural(p.piezas, 'pieza', 'piezas')}</span>
-                    </div>
-                    <BarraHorizontal porcentaje={(p.piezas / topProductos[0].piezas) * 100} />
-                  </li>
-                ))}
-              </ol>
-            )}
-          </Tarjeta>
-
-          <Tarjeta titulo={`Métodos de pago (${DIAS_RANKING} días)`} icono={CreditCard}>
-            {ventas.error ? (
-              <ErrorBloque texto="No se pudieron cargar las ventas." />
-            ) : cargando ? (
-              <Esqueleto alto="h-40" />
-            ) : kpis.metodos.length === 0 ? (
-              <Vacio texto="Aún no hay ventas en este periodo." />
-            ) : (
-              <ul className="space-y-3">
-                {kpis.metodos.map(m => (
-                  <li key={m.metodo}>
-                    <div className="flex items-center justify-between gap-2 text-sm">
-                      <span className="text-[#1C140F]">{METODOS_PAGO[m.metodo] ?? m.metodo}</span>
-                      <span className="text-xs text-[#3B2418]/70">
-                        {Math.round(m.porcentaje)}% · {plural(m.num, 'venta', 'ventas')}
-                      </span>
-                    </div>
-                    <BarraHorizontal porcentaje={m.porcentaje} />
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Tarjeta>
-
-          <Tarjeta
-            className="md:col-span-2 lg:col-span-1"
-            titulo="Últimas ventas"
-            icono={Clock}
-            accion={{ to: '/reportes', texto: 'Ver todas' }}
-          >
-            {ventas.error ? (
-              <ErrorBloque texto="No se pudieron cargar las ventas." />
-            ) : cargando ? (
-              <Esqueleto alto="h-40" />
-            ) : kpis.ultimas.length === 0 ? (
-              <Vacio texto="Todavía no hay ventas registradas." />
-            ) : (
-              <ul className="divide-y divide-[#E4D9CB]">
-                {kpis.ultimas.map(v => (
-                  <li key={v.id} className="flex items-center justify-between gap-2 py-2 text-sm">
-                    <div className="min-w-0">
-                      <p className="text-[#1C140F] truncate">{resumenProductos(v)}</p>
-                      <p className="text-xs text-[#3B2418]/50">
-                        {formatoCuando(v.created_at)} · {METODOS_PAGO[v.payment_method] ?? v.payment_method}
-                      </p>
-                    </div>
-                    <span className="shrink-0 text-xs text-[#3B2418]/70">{plural(piezasDe(v), 'pieza', 'piezas')}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Tarjeta>
-        </div>
+              </Tarjeta>
+    
+              <Tarjeta
+                className="md:col-span-2 lg:col-span-1"
+                titulo="Últimas ventas"
+                icono={Clock}
+                accion={{ to: '/reportes', texto: 'Ver todas' }}
+              >
+                <ListaUltimasVentas
+                  error={ventas.error}
+                  cargando={cargando}
+                  ventas={kpis.ultimas}
+                  vacio="Todavía no hay ventas registradas."
+                />
+              </Tarjeta>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
@@ -484,6 +487,76 @@ function Variacion({ actual, anterior, referencia }) {
       {sube ? '+' : ''}{Math.round(cambio)}%
       <span className="text-[#3B2418]/60">vs {referencia}</span>
     </span>
+  )
+}
+
+// Contadores de agotados/stock bajo + lista de los productos más urgentes
+function ContenidoAlertas({ error, cargando, alertas }) {
+  if (error) return <ErrorBloque texto="No se pudo cargar el inventario." />
+  if (cargando) return <Esqueleto alto="h-56" />
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2">
+        <ContadorAlerta
+          to="/inventario?estado=agotado"
+          icono={PackageX}
+          titulo="Agotados"
+          valor={alertas.agotados.length}
+        />
+        <ContadorAlerta
+          to="/inventario?estado=bajo"
+          icono={AlertTriangle}
+          titulo="Stock bajo"
+          valor={alertas.bajos.length}
+        />
+      </div>
+
+      {alertas.lista.length === 0 ? (
+        <p className="flex items-center gap-2 text-sm text-[#3B2418]/70 py-4">
+          <CircleCheck size={16} className="text-green-700" /> Todo el inventario está en orden.
+        </p>
+      ) : (
+        <ul className="divide-y divide-[#E4D9CB]">
+          {alertas.lista.map(r => (
+            <li key={r.fila.product_id} className="flex items-center justify-between gap-2 py-2 text-sm">
+              <div className="min-w-0">
+                <p className="font-medium text-[#1C140F] truncate flex items-center gap-1.5">
+                  {r.fila.color && <MuestraColor nombre={r.fila.color} size={10} />}
+                  <span className="truncate">{r.fila.name}</span>
+                </p>
+                <p className="text-xs text-[#3B2418]/50 font-mono truncate">{r.fila.sku}</p>
+              </div>
+              <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full ${
+                r.estado === 'agotado' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'
+              }`}>
+                {r.estado === 'agotado' ? 'Agotado' : `${r.stock} / mín. ${r.stock_min}`}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+function ListaUltimasVentas({ error, cargando, ventas, vacio }) {
+  if (error) return <ErrorBloque texto="No se pudieron cargar las ventas." />
+  if (cargando) return <Esqueleto alto="h-40" />
+  if (ventas.length === 0) return <Vacio texto={vacio} />
+  return (
+    <ul className="divide-y divide-[#E4D9CB]">
+      {ventas.map(v => (
+        <li key={v.id} className="flex items-center justify-between gap-2 py-2 text-sm">
+          <div className="min-w-0">
+            <p className="text-[#1C140F] truncate">{resumenProductos(v)}</p>
+            <p className="text-xs text-[#3B2418]/50">
+              {formatoCuando(v.created_at)} · {METODOS_PAGO[v.payment_method] ?? v.payment_method}
+            </p>
+          </div>
+          <span className="shrink-0 text-xs text-[#3B2418]/70">{plural(piezasDe(v), 'pieza', 'piezas')}</span>
+        </li>
+      ))}
+    </ul>
   )
 }
 

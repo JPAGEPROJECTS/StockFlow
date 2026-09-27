@@ -12,18 +12,21 @@ export const inicioHaceDias = (dias) => {
 }
 
 export const getPerfil = async (id) => {
-  return await supabase.from('profiles').select('full_name').eq('id', id).maybeSingle()
+  return await supabase.from('profiles').select('full_name, role').eq('id', id).maybeSingle()
 }
 
 // Ventas completadas desde una fecha, con lo necesario para KPIs, gráfica y últimas ventas.
 // No se piden montos: el inicio solo muestra cantidades (ventas y piezas).
-export const getVentasDesde = async (desdeISO) => {
-  return await supabase
+// Con userId trae solo las ventas de esa persona (inicio de la cajera).
+export const getVentasDesde = async (desdeISO, userId = null) => {
+  let query = supabase
     .from('sales')
     .select('id, created_at, payment_method, sale_items(quantity, products(name))')
     .eq('status', 'completed')
     .gte('created_at', desdeISO)
     .order('created_at', { ascending: false })
+  if (userId) query = query.eq('user_id', userId)
+  return await query
 }
 
 // Productos vendidos desde una fecha, para el ranking de más vendidos
