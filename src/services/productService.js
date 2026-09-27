@@ -1,14 +1,14 @@
 import { supabase } from '../lib/supabaseClient'
 import { siguienteSku } from '../lib/sku'
 
-// La vista v_stock_por_almacen no trae price ni stock_min (Inventario.jsx los necesita
-// para "stock bajo" y "valor total en inventario"), y usa product_name/quantity en vez
+// La vista v_stock_por_almacen no trae price, stock_min ni la categoría (Inventario.jsx
+// los necesita para "stock bajo", "valor total en inventario" y el filtro), y usa product_name/quantity en vez
 // de name/stock. Por eso combinamos la vista con products y remapeamos los campos.
 export const getProducts = async () => {
   const [{ data: stockView, error: viewError }, { data: products, error: prodError }] =
     await Promise.all([
       supabase.from('v_stock_por_almacen').select('*').order('product_name'),
-      supabase.from('products').select('id, price, stock_min, color')
+      supabase.from('products').select('id, price, stock_min, color, category_id, categories(name)')
     ])
 
   const error = viewError || prodError
@@ -27,7 +27,9 @@ export const getProducts = async () => {
       stock: row.quantity,
       price: info.price,
       stock_min: info.stock_min,
-      color: info.color ?? null
+      color: info.color ?? null,
+      category_id: info.category_id ?? null,
+      category_name: info.categories?.name ?? null
     }
   })
 

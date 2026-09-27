@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 
 const SIN_COLOR = '__sin_color'
+const SIN_CATEGORIA = '__sin_categoria'
 
 export default function Inventario() {
   const [productos, setProductos] = useState([])
@@ -33,6 +34,7 @@ export default function Inventario() {
   const [busqueda, setBusqueda] = useState('')
   const [almacenFiltro, setAlmacenFiltro] = useState('todos')
   const [colorFiltro, setColorFiltro] = useState('todos') // 'todos' | SIN_COLOR | nombre del color
+  const [categoriaFiltro, setCategoriaFiltro] = useState('todos') // 'todos' | SIN_CATEGORIA | id de la categoría
   // Accesos directos desde Inicio: ?estado=agotado|bajo filtra, ?nuevo=1 abre el formulario
   const [searchParams, setSearchParams] = useSearchParams()
   const [estadoFiltro, setEstadoFiltro] = useState(() =>
@@ -83,6 +85,14 @@ export default function Inventario() {
   }, [productos])
   const haySinColor = productos.some(p => !p.color)
 
+  // Categorías usadas en el inventario, para el filtro
+  const categorias = useMemo(() => {
+    const porId = new Map()
+    productos.forEach(p => { if (p.category_id) porId.set(p.category_id, p.category_name ?? '—') })
+    return Array.from(porId, ([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
+  }, [productos])
+  const haySinCategoria = productos.some(p => !p.category_id)
+
   // La tabla tiene una fila por producto y almacén, así que el estado del stock
   // se calcula por producto sumando todos sus almacenes.
   const estadoPorProducto = useMemo(() => {
@@ -102,8 +112,11 @@ export default function Inventario() {
       const coincideColor =
         colorFiltro === 'todos' ||
         (colorFiltro === SIN_COLOR ? !p.color : p.color === colorFiltro)
+      const coincideCategoria =
+        categoriaFiltro === 'todos' ||
+        (categoriaFiltro === SIN_CATEGORIA ? !p.category_id : p.category_id === categoriaFiltro)
       const coincideEstado = estadoFiltro === 'todos' || estadoPorProducto.get(p.product_id) === estadoFiltro
-      return coincideBusqueda && coincideAlmacen && coincideColor && coincideEstado
+      return coincideBusqueda && coincideAlmacen && coincideColor && coincideCategoria && coincideEstado
     })
 
     resultado.sort((a, b) => {
@@ -114,7 +127,7 @@ export default function Inventario() {
     })
 
     return resultado
-  }, [productos, busqueda, almacenFiltro, colorFiltro, estadoFiltro, estadoPorProducto, orden])
+  }, [productos, busqueda, almacenFiltro, colorFiltro, categoriaFiltro, estadoFiltro, estadoPorProducto, orden])
 
   const cambiarOrden = (campo) => {
     setOrden(prev => ({
@@ -265,6 +278,16 @@ export default function Inventario() {
           >
             <option value="todos">Todos los almacenes</option>
             {almacenes.map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
+          <select
+            value={categoriaFiltro}
+            onChange={e => setCategoriaFiltro(e.target.value)}
+            aria-label="Filtrar por categoría"
+            className="border border-[#E4D9CB] bg-white rounded-2xl p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30 text-[#3B2418]"
+          >
+            <option value="todos">Todas las categorías</option>
+            {categorias.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            {haySinCategoria && <option value={SIN_CATEGORIA}>Sin categoría</option>}
           </select>
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 flex pointer-events-none">
