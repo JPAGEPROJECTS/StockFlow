@@ -70,7 +70,8 @@ export default function ProductModal({ producto, onClose, onSaved }) {
 
   const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value })
 
-  // Al crear, el SKU se arma con la categoría y el color: VR + categoría + "-" + color + "-" + folio.
+  // Al crear, el SKU se arma con la categoría y el color: VR + categoría + "-" + color + "-" + folio,
+  // donde el folio es un consecutivo global (no depende de la categoría ni del color).
   // Al editar se conserva el SKU original (puede estar impreso en etiquetas).
   const nombreCategoria = categorias.find(c => c.id === form.category_id)?.name
   const prefijo = !producto && nombreCategoria && form.color.trim()
@@ -128,8 +129,9 @@ export default function ProductModal({ producto, onClose, onSaved }) {
         const { error: updError } = await updateProduct(producto.product_id, form)
         if (updError) throw updError
       } else {
-        // El folio se vuelve a consultar al guardar; si otro usuario tomó el mismo SKU
-        // entre tanto (violación de unique, código 23505), se reintenta con el siguiente.
+        // El folio se vuelve a consultar al guardar; si otro usuario tomó el mismo folio
+        // entre tanto, aunque sea con otra categoría o color (violación de unique en
+        // products.folio, código 23505), se reintenta con el siguiente.
         let nuevo = null
         for (let intento = 1; !nuevo; intento++) {
           const { data: sku, error: skuError } = await getSiguienteSku(prefijo)

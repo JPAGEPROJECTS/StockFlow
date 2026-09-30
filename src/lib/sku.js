@@ -1,9 +1,10 @@
 // Generación automática de SKU: VR + categoría + "-" + color + "-" + folio
-// Ej. Pulseras + Azul → VRPUL-AZL-001
+// Ej. Pulseras + Azul → VRPUL-AZL-0015
+// El folio es un solo consecutivo global: avanza sin importar la categoría ni el color.
 // Los códigos salen de docs/guia-estructuracion-sku.md (§2.1 categorías, §2.4 colores).
 
 export const PREFIJO_SKU = 'VR'
-const DIGITOS_FOLIO = 3
+const DIGITOS_FOLIO = 4
 
 // Quita acentos y normaliza para comparar nombres sin importar mayúsculas/acentos
 export const normalizar = (str) =>
@@ -80,7 +81,7 @@ export const codigoColor = (nombre) => {
   return conocido ? conocido.codigo : abreviar(nombre)
 }
 
-// "VRPUL-AZL-" — el folio se busca en la base de datos a partir de este prefijo
+// "VRPUL-AZL-" — se le agrega el siguiente folio global
 export const prefijoSku = (nombreCategoria, nombreColor) => {
   const cat = codigoCategoria(nombreCategoria)
   const col = codigoColor(nombreColor)
@@ -88,11 +89,6 @@ export const prefijoSku = (nombreCategoria, nombreColor) => {
   return `${PREFIJO_SKU}${cat}-${col}-`
 }
 
-// Siguiente folio a partir de los SKU existentes con el mismo prefijo
-export const siguienteSku = (prefijo, skusExistentes) => {
-  const maximo = skusExistentes.reduce((max, sku) => {
-    const folio = Number(sku.slice(prefijo.length))
-    return Number.isInteger(folio) && folio > max ? folio : max
-  }, 0)
-  return prefijo + String(maximo + 1).padStart(DIGITOS_FOLIO, '0')
-}
+// Siguiente SKU: el prefijo + el folio más alto de toda la tienda + 1
+export const siguienteSku = (prefijo, folioMaximo) =>
+  prefijo + String(folioMaximo + 1).padStart(DIGITOS_FOLIO, '0')

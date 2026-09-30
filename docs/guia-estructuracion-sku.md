@@ -21,15 +21,15 @@ VR[CAT]-[COLOR]-[FOLIO]
 | `VR` | Prefijo fijo de la tienda | 2 letras | `VR` |
 | `CAT` | Categoría del producto (va pegada al prefijo) | 3 letras (2 si es sigla) | `PUL` |
 | `COLOR` | Color de la pieza | 3 letras (2 si es sigla) | `AZL` |
-| `FOLIO` | Número consecutivo | 3 dígitos mínimo | `001` |
+| `FOLIO` | Número consecutivo global | 4 dígitos mínimo | `0001` |
 
-**Ejemplo:** Pulsera azul, la primera registrada → **`VRPUL-AZL-001`**
+**Ejemplo:** Pulsera azul, el producto número 15 de la tienda → **`VRPUL-AZL-0015`**
 
 ### Reglas de formato
 
 - **Solo mayúsculas, dígitos y guion simple (`-`).** Sin acentos, sin ñ, sin espacios ni caracteres especiales. El sistema quita acentos y convierte a mayúsculas solo.
 - **El prefijo `VR` y la categoría van juntos**, sin guion (`VRPUL`, no `VR-PUL`).
-- **Longitud:** normalmente 13 caracteres (`VRPUL-AZL-001`). Queda entre 12 y 16 en todos los casos habituales, el rango seguro para etiquetas y lectores (ver sección 8).
+- **Longitud:** normalmente 14 caracteres (`VRPUL-AZL-0001`). Queda entre 13 y 16 en todos los casos habituales, el rango seguro para etiquetas y lectores (ver sección 8).
 - **El SKU no se escribe a mano:** en el formulario de producto aparece en gris y se llena solo al elegir categoría y color.
 
 ---
@@ -37,9 +37,9 @@ VR[CAT]-[COLOR]-[FOLIO]
 ## 2. Cómo lo genera StockFlow
 
 1. En **Inventario → Nuevo producto** eliges la **Categoría** y el **Color** (ambos obligatorios al crear).
-2. El sistema arma el prefijo (`VRPUL-AZL-`) y consulta en la base de datos el último folio usado con ese prefijo.
-3. El campo **SKU** muestra la vista previa (`VRPUL-AZL-004`).
-4. **Al guardar**, el folio se vuelve a consultar. Si otra persona registró ese mismo SKU en el mismo instante, el sistema reintenta con el siguiente número (hasta 3 veces).
+2. El sistema arma el prefijo (`VRPUL-AZL-`) y consulta en la base de datos el folio más alto de **todos** los productos, sin importar su categoría ni color.
+3. El campo **SKU** muestra la vista previa con el siguiente folio (`VRPUL-AZL-0016`).
+4. **Al guardar**, el folio se vuelve a consultar. La base de datos no permite dos productos con el mismo folio (columna `folio` única en `products`): si otra persona registró ese folio en el mismo instante, el sistema reintenta con el siguiente número (hasta 3 veces).
 
 ### Qué pasa al editar
 
@@ -143,7 +143,7 @@ En el campo **Color** también puedes escribir un color que no esté en la lista
 
 ### 4.3 Recomendaciones para capturar colores
 
-- **Usa siempre el mismo nombre para el mismo color.** "Rosa" da `ROS`, pero "Rosado" da `RSD`: el sistema los trata como colores distintos y lleva folios separados. Lo mismo pasa con "Plateado" (`PLA`) y "Plata" (`PLT`): elige uno y úsalo siempre.
+- **Usa siempre el mismo nombre para el mismo color.** "Rosa" da `ROS`, pero "Rosado" da `RSD`: el sistema los trata como colores distintos y generan SKU con códigos diferentes. Lo mismo pasa con "Plateado" (`PLA`) y "Plata" (`PLT`): elige uno y úsalo siempre.
 - **Mayúsculas y acentos no importan.** "azul", "AZUL" y "Azúl" dan todos `AZL`.
 - **Elige el color dominante de la pieza.** Si tiene 3 o más colores sin uno principal, usa **Multicolor**.
 - **El color es el del acabado visible,** no el del material interno: una pieza de acero con baño de oro es **Dorado**.
@@ -158,16 +158,18 @@ En el campo **Color** también puedes escribir un color que no esté en la lista
   { nombre: 'Café', codigo: 'CAF', muestra: '#6F4E37' },
   ```
 
-- ⚠️ **Hazlo antes de crear productos con ese color.** Si ya hay productos con el código anterior (`CFA`), los nuevos empezarán otra numeración con el código nuevo (`CAF`), y el mismo color quedará con dos códigos.
+- ⚠️ **Hazlo antes de crear productos con ese color.** Si ya hay productos con el código anterior (`CFA`), los nuevos usarán el código nuevo (`CAF`), y el mismo color quedará con dos códigos.
 
 ---
 
 ## 5. Folio consecutivo
 
-- **Es consecutivo por combinación de categoría y color**, no global. `VRPUL-AZL-` y `VRPUL-DOR-` llevan su propia numeración, cada una desde `001`.
-- **Tiene 3 dígitos como mínimo** (`001`, `002`, … `999`). Los ceros a la izquierda mantienen todos los SKU del mismo largo y hacen que se ordenen bien en tablas y en Excel (`002` antes de `010`).
-- **No tiene límite:** después de `999` sigue `1000`, `1001`, etc. El SKU crece a 14 caracteres y sigue dentro del rango permitido. Lo único que cambia es que, ordenando como texto, `1000` aparece antes que `999`.
-- **Nunca se reutiliza un SKU.** Los productos desactivados también cuentan al calcular el siguiente folio: si `VRPUL-AZL-003` se dio de baja, la siguiente pulsera azul será `004` aunque la `003` ya no aparezca en el inventario.
+- **Es un solo consecutivo global** para toda la tienda: avanza sin importar la categoría ni el color. Por ejemplo: `VRPUL-AZL-0001`, `VRCOL-NEG-0002`, `VRPUL-AZL-0003`, `VRANI-DOR-0004`.
+- **El folio indica el orden de alta:** en **Inventario**, la columna **#** muestra el folio y permite ordenar los productos por el orden en que se registraron.
+- **Tiene 4 dígitos como mínimo** (`0001`, `0002`, … `9999`). Los ceros a la izquierda mantienen todos los SKU del mismo largo.
+- **No tiene límite:** después de `9999` sigue `10000`. El SKU crece a 15 caracteres y sigue dentro del rango permitido.
+- **Nunca se reutiliza un folio.** Los productos desactivados también cuentan al calcular el siguiente: si el `0003` se dio de baja, el siguiente producto sigue desde el folio más alto aunque el `0003` ya no aparezca en el inventario.
+- **Productos anteriores:** los SKU creados con la numeración anterior (3 dígitos por categoría y color) se renumeraron una sola vez con el folio global, siguiendo su fecha de creación.
 
 ---
 
@@ -252,13 +254,13 @@ Para piezas con combinación de colores a elección del cliente, usa el color **
 ## Resumen rápido
 
 ```
-VR[CAT]-[COLOR]-[FOLIO]          ej. VRPUL-AZL-001
+VR[CAT]-[COLOR]-[FOLIO]          ej. VRPUL-AZL-0001
 
 CAT    → código de la categoría (tabla 3.1)
          PUL, COL, ANI, ARE, TOB, SET fijos; el resto se abrevia solo
 COLOR  → DOR, PLA, NEG, BLA, AZL, ROJ, VRD, ROS, MUL (oficiales)
          otros colores se abrevian solo (tabla 4.2)
-FOLIO  → consecutivo por categoría + color, 3 dígitos mínimo, nunca se reutiliza
+FOLIO  → consecutivo global (toda la tienda), 4 dígitos mínimo, nunca se reutiliza
 ```
 
 - El SKU se genera solo al crear el producto y **no cambia al editarlo**.

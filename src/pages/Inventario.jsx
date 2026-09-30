@@ -41,7 +41,7 @@ export default function Inventario() {
     ['bajo', 'agotado'].includes(searchParams.get('estado')) ? searchParams.get('estado') : 'todos'
   ) // 'todos' | 'bajo' | 'agotado'
 
-  const [orden, setOrden] = useState({ campo: 'name', dir: 'asc' })
+  const [orden, setOrden] = useState({ campo: 'folio', dir: 'asc' })
 
   const [modalOpen, setModalOpen] = useState(() => searchParams.get('nuevo') === '1')
   const [editando, setEditando] = useState(null)
@@ -120,6 +120,11 @@ export default function Inventario() {
     })
 
     resultado.sort((a, b) => {
+      // Los productos sin folio (SKU con otro formato) van siempre al final
+      if (orden.campo === 'folio' && (a.folio ?? null) !== (b.folio ?? null)) {
+        if (a.folio == null) return 1
+        if (b.folio == null) return -1
+      }
       const valA = a[orden.campo] ?? ''
       const valB = b[orden.campo] ?? ''
       const cmp = typeof valA === 'string' ? valA.localeCompare(valB) : valA - valB
@@ -156,6 +161,7 @@ export default function Inventario() {
 
   const exportar = () => {
   const datos = filtrados.map(p => ({
+    Folio: p.folio ?? '—',
     SKU: p.sku,
     Producto: p.name,
     Almacén: p.warehouse_name ?? '—',
@@ -168,6 +174,7 @@ export default function Inventario() {
     titulo: 'Inventario',
     info: [`${datos.length} productos`],
     columnas: [
+      { key: 'Folio' },
       { key: 'SKU' },
       { key: 'Producto' },
       { key: 'Almacén' },
@@ -326,9 +333,10 @@ export default function Inventario() {
 
         {/* Tabla — scroll horizontal en pantallas chicas */}
         <div className="border border-[#E4D9CB] rounded-2xl overflow-x-auto bg-white shadow-sm hover:shadow-md transition-shadow">
-          <table className="w-full border-collapse min-w-[800px]">
+          <table className="w-full border-collapse min-w-[860px]">
             <thead>
               <tr className="text-left border-b border-[#E4D9CB] bg-[#F4EDE4] text-sm text-[#3B2418]/70">
+                <Th campo="folio" orden={orden} onClick={cambiarOrden}>#</Th>
                 <Th campo="sku" orden={orden} onClick={cambiarOrden}>SKU</Th>
                 <Th campo="name" orden={orden} onClick={cambiarOrden}>Nombre</Th>
                 <Th campo="color" orden={orden} onClick={cambiarOrden}>Color</Th>
@@ -340,12 +348,12 @@ export default function Inventario() {
             </thead>
             <tbody>
               {cargando && (
-                <tr><td colSpan={7} className="p-8 text-center text-[#3B2418]/40">Cargando inventario...</td></tr>
+                <tr><td colSpan={8} className="p-8 text-center text-[#3B2418]/40">Cargando inventario...</td></tr>
               )}
 
               {!cargando && filtrados.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-[#3B2418]/40">
+                  <td colSpan={8} className="p-8 text-center text-[#3B2418]/40">
                     {productos.length === 0
                       ? 'Aún no hay productos. Crea el primero con "+ Nuevo producto".'
                       : 'No se encontraron productos con esos filtros.'}
@@ -360,6 +368,7 @@ export default function Inventario() {
                     key={`${p.product_id}-${p.warehouse_id}`}
                     className={`border-b border-[#E4D9CB] last:border-0 text-sm ${stockBajo ? 'bg-red-50' : 'hover:bg-[#F4EDE4]/60'}`}
                   >
+                    <td className="p-3 font-mono text-[#3B2418]/60">{p.folio ?? '—'}</td>
                     <td className="p-3 font-mono text-[#3B2418]/80">{p.sku}</td>
                     <td className="p-3 font-medium text-[#1C140F]">{p.name}</td>
                     <td className="p-3 text-[#3B2418]">

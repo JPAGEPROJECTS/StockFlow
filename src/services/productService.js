@@ -8,7 +8,7 @@ export const getProducts = async () => {
   const [{ data: stockView, error: viewError }, { data: products, error: prodError }] =
     await Promise.all([
       supabase.from('v_stock_por_almacen').select('*').order('product_name'),
-      supabase.from('products').select('id, price, stock_min, color, category_id, categories(name)')
+      supabase.from('products').select('id, folio, price, stock_min, color, category_id, categories(name)')
     ])
 
   const error = viewError || prodError
@@ -23,6 +23,7 @@ export const getProducts = async () => {
       warehouse_id: row.warehouse_id,
       warehouse_name: row.warehouse_name,
       sku: row.sku,
+      folio: info.folio ?? null,
       name: row.product_name,
       stock: row.quantity,
       price: info.price,
@@ -84,15 +85,20 @@ export const getProduct = async (id) => {
   return await supabase.from('products').select('*').eq('id', id).single()
 }
 
-// Próximo SKU libre para un prefijo (ej. "VRPUL-AZL-" → "VRPUL-AZL-004").
-// Incluye productos desactivados: un SKU dado de baja nunca se reutiliza.
+// Próximo SKU para un prefijo con el folio global (ej. "VRPUL-AZL-" → "VRPUL-AZL-0016"
+// si el folio más alto de toda la tienda es 15, sea de la categoría/color que sea).
+// Incluye productos desactivados: un folio dado de baja nunca se reutiliza.
+// products.folio se calcula en la base de datos a partir del SKU y es único
+// (migracion_folio_unico.sql), así que dos productos nunca comparten folio.
 export const getSiguienteSku = async (prefijo) => {
   const { data, error } = await supabase
     .from('products')
-    .select('sku')
-    .ilike('sku', `${prefijo}%`)
+    .select('folio')
+    .not('folio', 'is', null)
+    .order('folio', { ascending: false })
+    .limit(1)
   if (error) return { data: null, error }
-  return { data: siguienteSku(prefijo, data.map(p => p.sku)), error: null }
+  return { data: siguienteSku(prefijo, data[0]?.folio ?? 0), error: null }
 }
 
 export const createProduct = async (product) => {
