@@ -7,6 +7,9 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
   const [initError, setInitError] = useState(null)
+  // Rol del usuario con sesión (de profiles), para ocultar pantallas según
+  // el rol. undefined = todavía cargando; null = sin perfil.
+  const [role, setRole] = useState(undefined)
 
   useEffect(() => {
     // 1. Obtener sesión actual
@@ -29,6 +32,20 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
+  // Se pide fuera de onAuthStateChange: hacer consultas dentro de ese
+  // callback puede bloquear el cliente de Supabase.
+  const userId = session?.user?.id
+  useEffect(() => {
+    if (!userId) {
+      setRole(undefined)
+      return
+    }
+    let cancelado = false
+    supabase.from('profiles').select('role').eq('id', userId).maybeSingle()
+      .then(({ data }) => { if (!cancelado) setRole(data?.role ?? null) })
+    return () => { cancelado = true }
+  }, [userId])
+
   const login = (email, password) =>
     supabase.auth.signInWithPassword({ email, password })
 
@@ -45,7 +62,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ session, login, logout, loading }}>
+    <AuthContext.Provider value={{ session, role, login, logout, loading }}>
       {children}
     </AuthContext.Provider>
   )

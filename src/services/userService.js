@@ -124,3 +124,29 @@ export const deleteUser = async (id) => {
   if (error) logError('deleteUser', error, { id })
   return { data, error }
 }
+
+// Cambio de contraseña del propio usuario (no requiere ser admin).
+// Antes de cambiarla se verifica la contraseña actual volviendo a iniciar
+// sesión con ella: así alguien que encuentre la sesión abierta en la caja
+// no puede cambiarla y dejar fuera a la dueña de la cuenta. Si la
+// verificación falla, la sesión abierta no se toca.
+export const changeOwnPassword = async (email, currentPassword, newPassword) => {
+  const { error: authError } = await supabase.auth.signInWithPassword({ email, password: currentPassword })
+  if (authError) {
+    logError('changeOwnPassword', authError, { email, paso: 'verificar actual' })
+    const credencialesInvalidas = authError.code === 'invalid_credentials' || authError.status === 400
+    return { error: credencialesInvalidas ? new Error('La contraseña actual no es correcta.') : authError }
+  }
+
+  const { error } = await supabase.auth.updateUser({ password: newPassword })
+  if (error) {
+    logError('changeOwnPassword', error, { email, paso: 'actualizar' })
+    if (error.code === 'same_password') {
+      return { error: new Error('La contraseña nueva debe ser distinta a la actual.') }
+    }
+    if (error.code === 'weak_password') {
+      return { error: new Error('La contraseña nueva es demasiado débil.') }
+    }
+  }
+  return { error }
+}

@@ -25,6 +25,15 @@ function PrivateRoute({ children }) {
   )
 }
 
+// Pantallas restringidas por rol: mientras el rol carga no se decide nada,
+// y si no está permitido se manda al inicio.
+function RoleRoute({ roles, children }) {
+  const { role } = useAuth()
+  if (role === undefined) return <div className="p-4 text-center">Cargando...</div>
+  if (!roles.includes(role)) return <Navigate to="/" replace />
+  return children
+}
+
 export default function App() {
   const { session } = useAuth()
 
@@ -56,7 +65,7 @@ export default function App() {
         <Route path="/ventas" element={<PrivateRoute><Ventas /></PrivateRoute>} />
         <Route path="/reportes" element={<PrivateRoute><Reportes /></PrivateRoute>} />
         <Route path="/turno" element={<PrivateRoute><Turno /></PrivateRoute>} />
-        <Route path="/usuarios" element={<PrivateRoute><Usuarios /></PrivateRoute>} />
+        <Route path="/usuarios" element={<PrivateRoute><RoleRoute roles={['admin', 'supervisor']}><Usuarios /></RoleRoute></PrivateRoute>} />
         <Route path="/categorias" element={<PrivateRoute><Categorias /></PrivateRoute>} />
 
         <Route path="*" element={<NotFound />} />
