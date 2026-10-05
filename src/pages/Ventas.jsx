@@ -15,6 +15,9 @@ const normalizar = (str) =>
     .replace(/[\u0300-\u036f]/g, '')
     .trim()
 
+// Valor del filtro de color para productos sin color asignado
+const SIN_COLOR = '__sin_color'
+
 const OPCIONES_ORDEN = [
   { value: 'name_asc', label: 'Nombre (A-Z)' },
   { value: 'name_desc', label: 'Nombre (Z-A)' },
@@ -83,6 +86,7 @@ export default function Ventas() {
   const [busquedaDebounced, setBusquedaDebounced] = useState('')
   const [categoriaFiltro, setCategoriaFiltro] = useState('')
   const [almacenFiltro, setAlmacenFiltro] = useState('todos')
+  const [colorFiltro, setColorFiltro] = useState('') // '' (todos) | SIN_COLOR | nombre del color
   const [orden, setOrden] = useState('name_asc')
   const [categorias, setCategorias] = useState([])
 
@@ -256,16 +260,24 @@ export default function Ventas() {
     return Array.from(map, ([id, name]) => ({ id, name }))
   }, [productos])
 
-  const hayFiltrosActivos = busqueda.trim() !== '' || categoriaFiltro !== '' || almacenFiltro !== 'todos'
+  // Colores presentes en el catálogo cargado, para el filtro
+  const colores = useMemo(() => {
+    const set = new Set(productos.map(p => p.color).filter(Boolean))
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [productos])
+  const haySinColor = productos.some(p => !p.color)
+
+  const hayFiltrosActivos = busqueda.trim() !== '' || categoriaFiltro !== '' || almacenFiltro !== 'todos' || colorFiltro !== ''
 
   const limpiarFiltros = () => {
     setBusqueda('')
     setCategoriaFiltro('')
     setAlmacenFiltro('todos')
+    setColorFiltro('')
     searchInputRef.current?.focus()
   }
 
-  // Búsqueda (texto normalizado, sin acentos) + categoría + almacén, con orden aplicado
+  // Búsqueda (texto normalizado, sin acentos) + categoría + almacén + color, con orden aplicado
   const filtrados = useMemo(() => {
     const texto = normalizar(busquedaDebounced)
 
@@ -279,8 +291,9 @@ export default function Ventas() {
 
       const coincideCategoria = !categoriaFiltro || p.category_id === categoriaFiltro
       const coincideAlmacen = almacenFiltro === 'todos' || p.warehouse_id === almacenFiltro
+      const coincideColor = !colorFiltro || (colorFiltro === SIN_COLOR ? !p.color : p.color === colorFiltro)
 
-      return coincideTexto && coincideCategoria && coincideAlmacen
+      return coincideTexto && coincideCategoria && coincideAlmacen && coincideColor
     })
 
     resultado.sort((a, b) => {
@@ -295,7 +308,7 @@ export default function Ventas() {
     })
 
     return resultado
-  }, [productos, busquedaDebounced, categoriaFiltro, almacenFiltro, orden])
+  }, [productos, busquedaDebounced, categoriaFiltro, almacenFiltro, colorFiltro, orden])
 
   // Si la búsqueda deja un único resultado, Enter lo agrega directo (útil con lector de código de barras)
   const handleBuscarSubmit = (e) => {
@@ -406,7 +419,7 @@ export default function Ventas() {
                 </button>
               )}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-2 lg:grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <select
                 value={categoriaFiltro}
                 onChange={e => setCategoriaFiltro(e.target.value)}
@@ -427,10 +440,27 @@ export default function Ventas() {
                   <option key={a.id} value={a.id}>{a.name}</option>
                 ))}
               </select>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 flex pointer-events-none">
+                  <MuestraColor nombre={colorFiltro === SIN_COLOR ? '' : colorFiltro} />
+                </span>
+                <select
+                  value={colorFiltro}
+                  onChange={e => setColorFiltro(e.target.value)}
+                  aria-label="Filtrar por color"
+                  className="border border-[#E4D9CB] bg-white p-2 pl-8 w-full rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30 text-[#3B2418]"
+                >
+                  <option value="">Todos los colores</option>
+                  {colores.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                  {haySinColor && <option value={SIN_COLOR}>Sin color</option>}
+                </select>
+              </div>
               <select
                 value={orden}
                 onChange={e => setOrden(e.target.value)}
-                className="md:col-span-2 lg:col-span-1 border border-[#E4D9CB] bg-white p-2 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30 text-[#3B2418]"
+                className="border border-[#E4D9CB] bg-white p-2 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30 text-[#3B2418]"
               >
                 {OPCIONES_ORDEN.map(o => (
                   <option key={o.value} value={o.value}>{o.label}</option>
