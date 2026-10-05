@@ -134,9 +134,9 @@ export default function Login() {
                 />
                 Recordarme
               </label>
-              <a href="#" className="text-[#3B2418] hover:underline">
+              <Link to="/recuperar" className="text-[#3B2418] hover:underline">
                 ¿Olvidaste tu contraseña?
-              </a>
+              </Link>
             </div>
 
             <button

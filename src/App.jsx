@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import Login from './pages/Login'
 import Register from './pages/Register'
+import RecuperarPassword from './pages/RecuperarPassword'
 import Home from './pages/Home'
 import Inventario from './pages/Inventario'
 import Ventas from './pages/Ventas'
@@ -37,6 +38,10 @@ export default function App() {
         <Route
           path="/registro"
           element={session ? <Navigate to="/" /> : <Register />}
+        />
+        <Route
+          path="/recuperar"
+          element={session ? <Navigate to="/" /> : <RecuperarPassword />}
         />
 
         <Route

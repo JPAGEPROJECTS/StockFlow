@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { getUsers, deleteUser, setUserActive, ROLES } from '../services/userService'
 import UserModal from '../components/UserModal'
+import SolicitudesPassword from '../components/SolicitudesPassword'
 import { Search, Pencil, Trash2, Power } from 'lucide-react'
 
 export default function Usuarios() {
@@ -77,6 +78,8 @@ export default function Usuarios() {
             Aprueba las cuentas nuevas y administra roles. Cada usuario crea su cuenta desde la pantalla de registro.
           </p>
         </div>
+
+        <SolicitudesPassword />
 
         {/* Búsqueda + filtro de estado */}
         <div className="flex flex-col sm:flex-row gap-3 mb-4">
