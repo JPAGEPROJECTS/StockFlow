@@ -122,12 +122,12 @@ export const getHistorialTurnos = async (desde, hasta, userId = null) => {
 // de caja y las ventas registradas en él.
 export const getDetalleTurno = async (shift_id) => {
   const [shiftRes, resumenRes, movRes, ventasRes] = await Promise.all([
-    supabase.from('shifts').select('notes').eq('id', shift_id).single(),
+    supabase.from('shifts').select('notes, expected_amount, difference').eq('id', shift_id).single(),
     getResumenParaCierre(shift_id),
     getMovimientos(shift_id),
     supabase
       .from('sales')
-      .select('id, created_at, total, payment_method, status, note, sale_items(quantity, products(name))')
+      .select('id, created_at, total, payment_method, status, note, user_id, sale_items(quantity, products(name)), sale_edits(old_value, new_value, reason, created_at)')
       .eq('shift_id', shift_id)
       .order('created_at', { ascending: true })
   ])
@@ -138,6 +138,9 @@ export const getDetalleTurno = async (shift_id) => {
   return {
     data: {
       notas: shiftRes.data?.notes ?? '',
+      // Leídos aquí (no de v_turnos_resumen) para reflejar recálculos por corrección de método de pago
+      expected_amount: shiftRes.data?.expected_amount ?? null,
+      difference: shiftRes.data?.difference ?? null,
       resumen: resumenRes.data,
       movimientos: movRes.data || [],
       ventas: ventasRes.data || []

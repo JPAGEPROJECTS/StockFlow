@@ -27,14 +27,15 @@ export const getVentasDetalle = async (desde, hasta) => {
 }
 
 // Trae cada item de venta con su categoría, fecha y cajera (sales.user_id),
-// filtrable por rango, categoría y cajera
+// filtrable por rango, categoría y cajera. sale_edits = correcciones del método de pago
 export const getVentasDetalladoFiltrado = async (desde, hasta, categoriaId, cajeraId) => {
   let query = supabase
     .from('sale_items')
     .select(`
       quantity, unit_price, unit_cost,
       products!inner(name, sku, category_id, categories(name)),
-      sales!inner(id, created_at, status, payment_method, user_id, note, customers(name), profiles(full_name))
+      sales!inner(id, created_at, status, payment_method, user_id, note, total, customers(name), profiles(full_name),
+        sale_edits(old_value, new_value, reason, created_at))
     `)
     .eq('sales.status', 'completed')
 

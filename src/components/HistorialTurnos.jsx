@@ -21,6 +21,8 @@ export default function HistorialTurnos({ desde, hasta, cajeraId, cajeras }) {
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
   const [seleccionado, setSeleccionado] = useState(null)
+  // Se incrementa al corregir una venta desde el detalle: el esperado/diferencia del turno pudo cambiar
+  const [recarga, setRecarga] = useState(0)
 
   useEffect(() => {
     let vigente = true
@@ -38,7 +40,7 @@ export default function HistorialTurnos({ desde, hasta, cajeraId, cajeras }) {
       setCargando(false)
     })
     return () => { vigente = false }
-  }, [desde, hasta, cajeraId])
+  }, [desde, hasta, cajeraId, recarga])
 
   const totales = useMemo(() => ({
     numVentas: turnos.reduce((s, t) => s + Number(t.num_ventas), 0),
@@ -180,7 +182,13 @@ export default function HistorialTurnos({ desde, hasta, cajeraId, cajeras }) {
         </div>
       )}
 
-      {seleccionado && <TurnoDetalleModal turno={seleccionado} onClose={() => setSeleccionado(null)} />}
+      {seleccionado && (
+        <TurnoDetalleModal
+          turno={seleccionado}
+          onClose={() => setSeleccionado(null)}
+          onCambio={() => setRecarga(r => r + 1)}
+        />
+      )}
     </>
   )
 }

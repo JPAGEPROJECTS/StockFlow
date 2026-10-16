@@ -44,3 +44,15 @@ export const getSalesReport = async (desde, hasta) => {
 
   return await query
 }
+
+// Corrige el método de pago de una venta ya registrada (ej. se cobró en
+// efectivo y se presionó Tarjeta). La función de Supabase valida permisos,
+// guarda la bitácora en sale_edits y, si el turno ya cerró, recalcula su
+// esperado y diferencia.
+export const corregirMetodoPago = async ({ sale_id, nuevo_metodo, motivo }) => {
+  return await supabase.rpc('corregir_metodo_pago', {
+    p_sale_id: sale_id,
+    p_nuevo: nuevo_metodo,
+    p_motivo: motivo
+  })
+}

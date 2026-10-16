@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { getDetalleTurno } from '../services/shiftService'
-import { X, ArrowUpCircle, ArrowDownCircle, Receipt, Wallet, StickyNote } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
+import CorregirPagoModal from './CorregirPagoModal'
+import { X, ArrowUpCircle, ArrowDownCircle, Receipt, Wallet, StickyNote, Pencil } from 'lucide-react'
 
 const METODOS_PAGO = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia', other: 'Otro' }
 
@@ -15,13 +17,21 @@ const resumenProductos = (venta) => {
   return nombres.length === 1 ? nombres[0] : `${nombres[0]} +${nombres.length - 1} más`
 }
 
-// `turno` es una fila de v_turnos_resumen (cajera, caja, montos del cierre, fechas)
-export default function TurnoDetalleModal({ turno, onClose }) {
+// Texto para el tooltip de una venta corregida: "Tarjeta → Efectivo: motivo"
+const textoCorrecciones = (edits) => edits
+  .map(e => `${METODOS_PAGO[e.old_value] ?? e.old_value} → ${METODOS_PAGO[e.new_value] ?? e.new_value}: ${e.reason}`)
+  .join('\n')
+
+// `turno` es una fila de v_turnos_resumen (cajera, caja, montos del cierre, fechas).
+// onCambio avisa al padre que se corrigió una venta, para que recargue su lista.
+export default function TurnoDetalleModal({ turno, onClose, onCambio }) {
+  const { session, role } = useAuth()
   const [detalle, setDetalle] = useState(null)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState(null)
+  const [corrigiendo, setCorrigiendo] = useState(null)
 
-  useEffect(() => {
+  const cargar = () => {
     setCargando(true)
     setError(null)
     getDetalleTurno(turno.shift_id).then(({ data, error }) => {
@@ -33,12 +43,22 @@ export default function TurnoDetalleModal({ turno, onClose }) {
       }
       setCargando(false)
     })
-  }, [turno.shift_id])
+  }
+
+  useEffect(cargar, [turno.shift_id])
 
   const cerrado = turno.status === 'cerrado'
-  // Para un turno cerrado se muestra lo que quedó guardado al cerrarlo; para uno abierto, el cálculo al momento
-  const esperado = cerrado && turno.expected_amount !== null ? Number(turno.expected_amount) : detalle?.resumen?.expected
-  const diferencia = Number(turno.difference ?? 0)
+  // Para un turno cerrado se muestra lo que quedó guardado al cerrarlo (o recalculado al
+  // corregir una venta); para uno abierto, el cálculo al momento
+  const esperadoGuardado = detalle?.expected_amount ?? turno.expected_amount
+  const esperado = cerrado && esperadoGuardado !== null ? Number(esperadoGuardado) : detalle?.resumen?.expected
+  const diferencia = Number(detalle?.difference ?? turno.difference ?? 0)
+
+  // Mismas reglas que corregir_metodo_pago(): admin/supervisor siempre; la cajera
+  // solo sus ventas con el turno abierto
+  const puedeCorregir = (venta) =>
+    venta.status === 'completed' &&
+    (role === 'admin' || role === 'supervisor' || (!cerrado && venta.user_id === session?.user?.id))
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
@@ -138,20 +158,39 @@ export default function TurnoDetalleModal({ turno, onClose }) {
                 <ul className="divide-y divide-[#E4D9CB]">
                   {detalle.ventas.map(v => {
                     const cancelada = v.status !== 'completed'
+                    const edits = v.sale_edits || []
                     return (
                       <li key={v.id} className="flex items-center justify-between gap-2 py-2 text-sm">
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <p className={`truncate ${cancelada ? 'text-[#3B2418]/40 line-through' : 'text-[#1C140F]'}`}>
                             {resumenProductos(v)}
                           </p>
                           <p className="text-xs text-[#3B2418]/50">
                             {hora(v.created_at)} · {METODOS_PAGO[v.payment_method] ?? v.payment_method}
                             {cancelada && ' · Cancelada'}
+                            {edits.length > 0 && (
+                              <span
+                                title={textoCorrecciones(edits)}
+                                className="ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 cursor-help"
+                              >
+                                Editada
+                              </span>
+                            )}
                           </p>
                         </div>
                         <span className={`shrink-0 font-medium ${cancelada ? 'text-[#3B2418]/40 line-through' : 'text-[#1C140F]'}`}>
                           {dinero(v.total)}
                         </span>
+                        {puedeCorregir(v) && (
+                          <button
+                            onClick={() => setCorrigiendo({ ...v, descripcion: resumenProductos(v) })}
+                            className="flex items-center justify-center w-8 h-8 rounded-full bg-[#F4EDE4] text-[#3B2418] hover:shadow-md transition-all shrink-0"
+                            aria-label="Corregir método de pago"
+                            title="Corregir método de pago"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                        )}
                       </li>
                     )
                   })}
@@ -161,6 +200,14 @@ export default function TurnoDetalleModal({ turno, onClose }) {
           </div>
         )}
       </div>
+
+      {corrigiendo && (
+        <CorregirPagoModal
+          venta={corrigiendo}
+          onClose={() => setCorrigiendo(null)}
+          onGuardado={() => { cargar(); onCambio?.() }}
+        />
+      )}
     </div>
   )
 }

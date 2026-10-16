@@ -2,14 +2,44 @@ import { useEffect, useState, useMemo } from 'react'
 import { getVentasDetalladoFiltrado } from '../services/reportService'
 import { getCategories } from '../services/productService'
 import { getUsers } from '../services/userService'
+import { getHistorialTurnos } from '../services/shiftService'
 import { exportToExcel } from '../services/exportService'
+import { useAuth } from '../context/AuthContext'
 import HistorialTurnos from '../components/HistorialTurnos'
-import { CalendarDays, CalendarRange, FileDown, Filter, List, LayoutGrid, Wallet } from 'lucide-react'
+import CorregirPagoModal from '../components/CorregirPagoModal'
+import { Ban, CalendarDays, CalendarRange, FileDown, Filter, List, LayoutGrid, Pencil, Wallet } from 'lucide-react'
 
 const METODOS_PAGO = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia', other: 'Otro' }
 
+// Fecha local 'YYYY-MM-DD' (toISOString usa UTC y movía las ventas de la noche al día siguiente)
+const diaLocal = (fecha) => {
+  const f = new Date(fecha)
+  return `${f.getFullYear()}-${String(f.getMonth() + 1).padStart(2, '0')}-${String(f.getDate()).padStart(2, '0')}`
+}
+
+// Todos los días entre inicio y fin ('YYYY-MM-DD', ambos incluidos)
+const rangoDias = (inicio, fin) => {
+  const dias = []
+  const [y, m, d] = inicio.split('-').map(Number)
+  for (const f = new Date(y, m - 1, d); diaLocal(f) <= fin; f.setDate(f.getDate() + 1)) {
+    dias.push(diaLocal(f))
+  }
+  return dias
+}
+
+// Texto para el tooltip de una venta corregida: "Tarjeta → Efectivo: motivo"
+const textoCorrecciones = (edits) => edits
+  .map(e => `${METODOS_PAGO[e.old_value] ?? e.old_value} → ${METODOS_PAGO[e.new_value] ?? e.new_value}: ${e.reason}`)
+  .join('\n')
+
 export default function Reportes() {
+  const { role } = useAuth()
+  // En Reportes no se sabe si el turno sigue abierto: la corrección aquí es solo para
+  // admin/supervisor (la cajera corrige las suyas desde el detalle de su turno)
+  const puedeCorregir = role === 'admin' || role === 'supervisor'
   const [items, setItems] = useState([])
+  const [turnos, setTurnos] = useState([]) // para marcar días sin turno / sin ventas
+  const [corrigiendo, setCorrigiendo] = useState(null)
   const [categorias, setCategorias] = useState([])
   const [desde, setDesde] = useState('')
   const [hasta, setHasta] = useState('')
@@ -36,13 +66,19 @@ export default function Reportes() {
   const cargar = async () => {
     setCargando(true)
     setError('')
-    const { data, error } = await getVentasDetalladoFiltrado(desde, hasta, categoriaFiltro || null, cajeraFiltro || null)
+    const [{ data, error }, turnosRes] = await Promise.all([
+      getVentasDetalladoFiltrado(desde, hasta, categoriaFiltro || null, cajeraFiltro || null),
+      getHistorialTurnos(desde, hasta, cajeraFiltro || null)
+    ])
     if (error) {
       setError('No se pudo cargar el reporte: ' + error.message)
       setItems([])
     } else {
       setItems(data || [])
     }
+    // Si fallan los turnos el reporte sigue sirviendo; solo no se distingue "sin turno" de "sin ventas"
+    if (turnosRes.error) console.error('[Reportes] getHistorialTurnos falló', turnosRes.error)
+    setTurnos(turnosRes.data || [])
     setCargando(false)
   }
 
@@ -52,10 +88,8 @@ export default function Reportes() {
     const grupos = new Map()
 
     items.forEach(item => {
-      const fecha = new Date(item.sales.created_at)
-      const periodo = agrupacion === 'dia'
-        ? fecha.toISOString().slice(0, 10)
-        : fecha.toISOString().slice(0, 7)
+      const dia = diaLocal(item.sales.created_at)
+      const periodo = agrupacion === 'dia' ? dia : dia.slice(0, 7)
       const clave = `${periodo}|${item.sales.user_id ?? ''}`
 
       if (!grupos.has(clave)) {
@@ -85,11 +119,47 @@ export default function Reportes() {
       .sort((a, b) => b.periodo.localeCompare(a.periodo) || a.cajera.localeCompare(b.cajera))
   }, [items, agrupacion])
 
+  // Resumen por día con los días vacíos del rango: si hubo turno pero ninguna venta
+  // ('sinVentas', una fila por cajera) o si nadie abrió turno ('sinTurno').
+  // Sin filtro de fechas, el rango va del primer día con datos hasta hoy.
+  const filasResumen = useMemo(() => {
+    if (agrupacion !== 'dia') return agrupado
+
+    const turnosPorDia = new Map()
+    turnos.forEach(t => {
+      const dia = diaLocal(t.opened_at)
+      if (!turnosPorDia.has(dia)) turnosPorDia.set(dia, new Set())
+      turnosPorDia.get(dia).add(t.cajera ?? '—')
+    })
+
+    const diasConVentas = new Set(agrupado.map(r => r.periodo))
+    const hoy = diaLocal(new Date())
+    const conDatos = [...diasConVentas, ...turnosPorDia.keys()].sort()
+    const inicio = desde || conDatos[0]
+    const fin = hasta && hasta < hoy ? hasta : hoy
+    if (!inicio || inicio > fin) return agrupado
+
+    const vacias = []
+    rangoDias(inicio, fin).forEach(dia => {
+      if (diasConVentas.has(dia)) return
+      const cajerasDia = turnosPorDia.get(dia)
+      if (cajerasDia) {
+        cajerasDia.forEach(cajera => vacias.push({ periodo: dia, cajera, estado: 'sinVentas' }))
+      } else {
+        vacias.push({ periodo: dia, cajera: '—', estado: 'sinTurno' })
+      }
+    })
+
+    return [...agrupado, ...vacias]
+      .sort((a, b) => b.periodo.localeCompare(a.periodo) || a.cajera.localeCompare(b.cajera))
+  }, [agrupado, turnos, agrupacion, desde, hasta])
+
   // Vista detallada: una fila por cada producto vendido, agrupada por venta.
   // No hay folio de venta en la base de datos, así que se asigna un número
   // secuencial por orden cronológico (Venta 1 = la más antigua del rango
-  // filtrado) y se ordena por ese número, para que todos los productos de
-  // una misma venta queden juntos en vez de mezclados por fecha exacta.
+  // filtrado) y se ordena por ese número de mayor a menor (la más reciente
+  // arriba, igual que el resumen), para que todos los productos de una misma
+  // venta queden juntos en vez de mezclados por fecha exacta.
   const detallado = useMemo(() => {
     const idsPorFecha = [...items]
       .sort((a, b) => a.sales.created_at.localeCompare(b.sales.created_at))
@@ -99,6 +169,9 @@ export default function Reportes() {
     return items
       .map(item => ({
         numeroVenta: numeroPorVenta.get(item.sales.id),
+        saleId: item.sales.id,
+        totalVenta: item.sales.total,
+        correcciones: item.sales.sale_edits || [],
         fecha: new Date(item.sales.created_at).toLocaleString(),
         cajera: item.sales.profiles?.full_name ?? '—',
         cliente: item.sales.customers?.name ?? 'Sin cliente',
@@ -111,7 +184,7 @@ export default function Reportes() {
         metodoPago: item.sales.payment_method,
         nota: item.sales.note ?? '' // motivo del cambio de total, si lo hubo
       }))
-      .sort((a, b) => a.numeroVenta - b.numeroVenta)
+      .sort((a, b) => b.numeroVenta - a.numeroVenta)
   }, [items])
 
   const totalesResumen = useMemo(() => ({
@@ -151,9 +224,16 @@ export default function Reportes() {
     ]
 
     if (vista === 'resumen') {
-      if (agrupado.length === 0) return alert('No hay datos para exportar')
+      if (filasResumen.length === 0) return alert('No hay datos para exportar')
 
-      exportToExcel(agrupado, `ventas_resumen_${agrupacion}_${sufijo}`, 'Resumen', {
+      // Días vacíos: la columna Cajera explica por qué y los montos quedan en blanco
+      const filas = filasResumen.map(r =>
+        r.estado === 'sinTurno' ? { periodo: r.periodo, cajera: 'No se abrió turno' }
+          : r.estado === 'sinVentas' ? { periodo: r.periodo, cajera: `${r.cajera} — turno sin ventas` }
+            : r
+      )
+
+      exportToExcel(filas, `ventas_resumen_${agrupacion}_${sufijo}`, 'Resumen', {
         titulo: `Reporte de ventas — Resumen por ${agrupacion === 'dia' ? 'día' : 'mes'}`,
         info,
         columnas: [
@@ -170,7 +250,11 @@ export default function Reportes() {
           numVentas: agrupado.reduce((s, r) => s + r.numVentas, 0),
           ...totalesResumen
         },
-        colorTexto: (fila, key) => key === 'margen' ? (fila.margen < 0 ? 'FFB91C1C' : 'FF15803D') : undefined
+        colorTexto: (fila, key) => {
+          if (key === 'margen') return fila.margen < 0 ? 'FFB91C1C' : 'FF15803D'
+          if (key === 'cajera' && fila.numVentas === undefined) return 'FF8A7160'
+          return undefined
+        }
       })
     } else {
       if (detallado.length === 0) return alert('No hay datos para exportar')
@@ -182,8 +266,12 @@ export default function Reportes() {
         return {
           ...r,
           venta: nuevaVenta ? `#${r.numeroVenta}` : '',
-          nota: nuevaVenta ? r.nota : '',
-          metodoPago: METODOS_PAGO[r.metodoPago] ?? r.metodoPago
+          // La corrección de pago se agrega a la nota para que el motivo quede en el Excel
+          nota: nuevaVenta
+            ? [r.nota, r.correcciones.length ? `Corrección de pago: ${textoCorrecciones(r.correcciones)}` : '']
+              .filter(Boolean).join(' · ')
+            : '',
+          metodoPago: (METODOS_PAGO[r.metodoPago] ?? r.metodoPago) + (r.correcciones.length ? ' (corregido)' : '')
         }
       })
 
@@ -341,7 +429,7 @@ export default function Reportes() {
           {!esTurnos && (
             <button
               onClick={exportar}
-              disabled={(vista === 'resumen' ? agrupado.length : detallado.length) === 0}
+              disabled={(vista === 'resumen' ? filasResumen.length : detallado.length) === 0}
               className="flex items-center justify-center gap-2 bg-[#3B2418] text-[#F4EDE4] px-4 py-2 rounded-2xl font-medium text-sm hover:shadow-md transition-all disabled:opacity-50"
             >
               <span className="flex items-center justify-center w-6 h-6 rounded-full bg-[#F4EDE4] text-[#3B2418]">
@@ -358,7 +446,7 @@ export default function Reportes() {
         ) : cargando ? (
           <p className="text-[#3B2418]/50 text-sm">Cargando...</p>
         ) : vista === 'resumen' ? (
-          agrupado.length === 0 ? (
+          filasResumen.length === 0 ? (
             <p className="text-[#3B2418]/50 text-sm">No hay ventas con estos filtros.</p>
           ) : (
             <div className="overflow-x-auto border border-[#E4D9CB] rounded-2xl bg-white shadow-sm">
@@ -375,7 +463,26 @@ export default function Reportes() {
                   </tr>
                 </thead>
                 <tbody>
-                  {agrupado.map((r, i) => (
+                  {filasResumen.map((r, i) => r.estado === 'sinTurno' ? (
+                    <tr key={i} className="border-b border-[#E4D9CB] last:border-0 text-sm bg-[#FBF8F4]">
+                      <td className="p-3 text-[#3B2418]/50 whitespace-nowrap">{r.periodo}</td>
+                      <td className="p-3" colSpan={6}>
+                        <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-[#E4D9CB]/60 text-[#3B2418]/70">
+                          <Ban size={12} /> No se abrió turno
+                        </span>
+                      </td>
+                    </tr>
+                  ) : r.estado === 'sinVentas' ? (
+                    <tr key={i} className="border-b border-[#E4D9CB] last:border-0 text-sm bg-amber-50/40">
+                      <td className="p-3 text-[#3B2418]/70 whitespace-nowrap">{r.periodo}</td>
+                      <td className="p-3 text-[#3B2418]/70 whitespace-nowrap">{r.cajera}</td>
+                      <td className="p-3" colSpan={5}>
+                        <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-amber-100 text-amber-700">
+                          <Wallet size={12} /> {categoriaFiltro ? 'Turno sin ventas de esta categoría' : 'Turno abierto sin ventas'}
+                        </span>
+                      </td>
+                    </tr>
+                  ) : (
                     <tr key={i} className="border-b border-[#E4D9CB] last:border-0 text-sm">
                       <td className="p-3 text-[#1C140F] whitespace-nowrap">{r.periodo}</td>
                       <td className="p-3 text-[#3B2418] whitespace-nowrap">{r.cajera}</td>
@@ -431,7 +538,26 @@ export default function Reportes() {
                       className={`border-b border-[#E4D9CB] last:border-0 text-sm ${nuevaVenta ? 'border-t-2 border-t-[#3B2418]/20' : ''}`}
                     >
                       <td className="p-3 text-[#3B2418]/70 whitespace-nowrap">
-                        {nuevaVenta ? `#${r.numeroVenta}` : ''}
+                        {nuevaVenta && (
+                          <span className="flex items-center gap-2">
+                            #{r.numeroVenta}
+                            {puedeCorregir && (
+                              <button
+                                onClick={() => setCorrigiendo({
+                                  id: r.saleId,
+                                  payment_method: r.metodoPago,
+                                  total: r.totalVenta,
+                                  descripcion: `Venta #${r.numeroVenta}`
+                                })}
+                                className="flex items-center justify-center w-7 h-7 rounded-full bg-[#F4EDE4] text-[#3B2418] hover:shadow-md transition-all"
+                                aria-label={`Corregir método de pago de la venta ${r.numeroVenta}`}
+                                title="Corregir método de pago"
+                              >
+                                <Pencil size={12} />
+                              </button>
+                            )}
+                          </span>
+                        )}
                       </td>
                       <td className="p-3 text-[#1C140F] whitespace-nowrap">{r.fecha}</td>
                       <td className="p-3 text-[#3B2418] whitespace-nowrap">{r.cajera}</td>
@@ -442,7 +568,17 @@ export default function Reportes() {
                       <td className="p-3 text-[#3B2418]">{r.cantidad}</td>
                       <td className="p-3 text-[#3B2418] whitespace-nowrap">${r.precioUnitario.toFixed(2)}</td>
                       <td className="p-3 font-medium text-[#1C140F] whitespace-nowrap">${r.subtotal.toFixed(2)}</td>
-                      <td className="p-3 text-[#3B2418]/60 whitespace-nowrap">{r.metodoPago}</td>
+                      <td className="p-3 text-[#3B2418]/60 whitespace-nowrap">
+                        {METODOS_PAGO[r.metodoPago] ?? r.metodoPago}
+                        {nuevaVenta && r.correcciones.length > 0 && (
+                          <span
+                            title={textoCorrecciones(r.correcciones)}
+                            className="ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 cursor-help"
+                          >
+                            Editada
+                          </span>
+                        )}
+                      </td>
                       <td className="p-3 text-xs text-[#3B2418]/80 min-w-[180px] max-w-xs">
                         {nuevaVenta && r.nota}
                       </td>
@@ -461,6 +597,10 @@ export default function Reportes() {
           </div>
         )}
       </div>
+
+      {corrigiendo && (
+        <CorregirPagoModal venta={corrigiendo} onClose={() => setCorrigiendo(null)} onGuardado={cargar} />
+      )}
     </div>
   )
 }
