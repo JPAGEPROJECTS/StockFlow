@@ -1,9 +1,10 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { getProductsForSale, getCategories } from '../services/productService'
-import { getCustomers, createSale, addSaleItem } from '../services/salesService'
+import { getCustomers, createSale, addSaleItem, registrarPagosVenta } from '../services/salesService'
 import { getTurnoActivo } from '../services/shiftService'
-import { Search, X, Minus, Plus, Pencil } from 'lucide-react'
+import { METODOS_PAGO } from '../lib/metodosPago'
+import { Search, X, Minus, Plus, Pencil, Split } from 'lucide-react'
 import { MuestraColor } from '../components/ColorCombobox'
 
 // Quita acentos y normaliza para que "cafe" encuentre "café", etc.
@@ -78,6 +79,40 @@ const centavosFinales = (carrito, totalAcordado) => {
   return repartirCentavos(Math.round(Number(totalAcordado) * 100), pesos)
 }
 
+const aCentavos = (v) => Math.round(Number(v) * 100)
+const montoInvalido = (v) => esNumeroInvalido(v) || Number(v) <= 0
+const dinero = (centavos) => `$${(centavos / 100).toFixed(2)}`
+
+// Efectivo que entregó el cliente y el cambio a devolver (opcional)
+function EfectivoRecibido({ recibido, onChange, montoCentavos }) {
+  const valido = recibido !== '' && !esNumeroInvalido(recibido)
+  const cambio = valido ? aCentavos(recibido) - montoCentavos : null
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 text-sm text-[#3B2418]">
+      <label className="flex items-center gap-1.5">
+        <span className="shrink-0">Recibido</span>
+        <span className="text-[#3B2418]/50">$</span>
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          value={recibido}
+          placeholder="Opcional"
+          aria-label="Efectivo recibido del cliente"
+          onChange={e => onChange(e.target.value)}
+          className={`w-24 border rounded-lg px-2 py-1 text-sm text-right focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30
+            ${cambio !== null && cambio < 0 ? 'border-red-400 bg-red-50' : 'border-[#E4D9CB] bg-white'}`}
+        />
+      </label>
+      {cambio !== null && (cambio >= 0 ? (
+        <span className="text-base sm:text-lg font-bold text-[#1C140F]">Cambio: {dinero(cambio)}</span>
+      ) : (
+        <span className="text-xs text-red-600">No alcanza: faltan {dinero(-cambio)}</span>
+      ))}
+    </div>
+  )
+}
+
 export default function Ventas() {
   const [productos, setProductos] = useState([])
   const [cargandoProductos, setCargandoProductos] = useState(true)
@@ -94,6 +129,11 @@ export default function Ventas() {
   const [clientes, setClientes] = useState([])
   const [clienteId, setClienteId] = useState('')
   const [metodoPago, setMetodoPago] = useState('cash')
+  // Efectivo entregado por el cliente cuando se paga con un solo método en efectivo
+  const [recibido, setRecibido] = useState('')
+  // Pago dividido entre varios métodos: filas { metodo, monto, recibido }
+  const [dividirPago, setDividirPago] = useState(false)
+  const [pagos, setPagos] = useState([])
   // Precio final negociado con el cliente para toda la venta (null = sin ajuste)
   const [totalAcordado, setTotalAcordado] = useState(null)
   // Motivo del cambio de total; se guarda en sales.note
@@ -253,6 +293,89 @@ export default function Ventas() {
   const ajusteVenta = total - subtotalVenta
   const hayPreciosInvalidos = carrito.some(precioLineaInvalido) || totalAcordadoInvalido
 
+  // Total exacto en centavos: el mismo que calcula Supabase al sumar los sale_items
+  const totalCentavos = hayPreciosInvalidos
+    ? 0
+    : centavosFinales(carrito, totalAcordado).reduce((a, b) => a + b, 0)
+
+  const pagosCapturados = dividirPago
+    ? pagos.map(p => ({
+        metodo: p.metodo,
+        centavos: montoInvalido(p.monto) ? null : aCentavos(p.monto),
+        recibido: p.metodo === 'cash' ? p.recibido : ''
+      }))
+    : [{ metodo: metodoPago, centavos: totalCentavos, recibido: metodoPago === 'cash' ? recibido : '' }]
+  const restanteCentavos = totalCentavos - pagosCapturados.reduce((s, p) => s + (p.centavos ?? 0), 0)
+
+  const errorPago = (() => {
+    if (dividirPago) {
+      if (pagos.some(p => montoInvalido(p.monto))) return 'Captura un monto mayor a $0.00 en cada método de pago.'
+      if (restanteCentavos > 0) return `Faltan ${dinero(restanteCentavos)} por cubrir en los pagos.`
+      if (restanteCentavos < 0) return `Los pagos exceden el total por ${dinero(-restanteCentavos)}.`
+    }
+    const efectivo = pagosCapturados.find(p => p.metodo === 'cash' && p.recibido !== '')
+    if (efectivo && (esNumeroInvalido(efectivo.recibido) || aCentavos(efectivo.recibido) < (efectivo.centavos ?? 0))) {
+      return 'El efectivo recibido no cubre el monto en efectivo.'
+    }
+    return ''
+  })()
+
+  // Formato que espera registrar_pagos_venta (una venta de $0 no lleva pagos)
+  const pagosParaGuardar = () => totalCentavos === 0 ? [] : pagosCapturados.map(p => ({
+    method: p.metodo,
+    amount: p.centavos / 100,
+    ...(p.recibido !== '' && { cash_received: Number(p.recibido) })
+  }))
+
+  // Métodos que puede elegir una fila: el suyo y los que no usa otra fila
+  const metodosLibres = (actual) =>
+    Object.keys(METODOS_PAGO).filter(m => m === actual || !pagos.some(p => p.metodo === m))
+
+  const activarDividirPago = () => {
+    const otro = Object.keys(METODOS_PAGO).find(m => m !== metodoPago)
+    setPagos([
+      { metodo: metodoPago, monto: '', recibido: metodoPago === 'cash' ? recibido : '' },
+      { metodo: otro, monto: '', recibido: '' }
+    ])
+    setDividirPago(true)
+  }
+
+  const cancelarDividirPago = () => {
+    const primero = pagos[0]
+    setMetodoPago(primero?.metodo ?? 'cash')
+    setRecibido(primero?.metodo === 'cash' ? primero.recibido : '')
+    setPagos([])
+    setDividirPago(false)
+  }
+
+  const agregarPago = () => {
+    const libre = Object.keys(METODOS_PAGO).find(m => !pagos.some(p => p.metodo === m))
+    if (libre) setPagos([...pagos, { metodo: libre, monto: '', recibido: '' }])
+  }
+
+  const quitarPago = (idx) => setPagos(pagos.filter((_, i) => i !== idx))
+
+  const cambiarPago = (idx, campo, valor) =>
+    setPagos(pagos.map((p, i) => i !== idx ? p : {
+      ...p,
+      [campo]: valor,
+      ...(campo === 'metodo' && valor !== 'cash' && { recibido: '' })
+    }))
+
+  // Completa la fila con lo que falta por cubrir
+  const usarRestante = (idx) => {
+    const actual = montoInvalido(pagos[idx].monto) ? 0 : aCentavos(pagos[idx].monto)
+    const nuevo = actual + restanteCentavos
+    if (nuevo > 0) cambiarPago(idx, 'monto', (nuevo / 100).toFixed(2))
+  }
+
+  const reiniciarPago = () => {
+    setMetodoPago('cash')
+    setRecibido('')
+    setPagos([])
+    setDividirPago(false)
+  }
+
   // Almacenes disponibles para el filtro, derivados del propio catálogo cargado
   const almacenes = useMemo(() => {
     const map = new Map()
@@ -326,6 +449,11 @@ export default function Ventas() {
       setError('Revisa los precios del carrito: hay campos vacíos o inválidos.')
       return
     }
+    if (errorPago) {
+      setError(errorPago)
+      return
+    }
+    const pagosVenta = pagosParaGuardar()
     setProcesando(true)
     setError('')
 
@@ -341,7 +469,7 @@ export default function Ventas() {
       const { data: venta, error: saleError } = await createSale({
         customer_id: clienteId,
         user_id: user.id,
-        payment_method: metodoPago,
+        payment_method: dividirPago ? 'mixed' : metodoPago,
         shift_id: turnoActivo.id,
         note: totalAcordado !== null ? notaAjuste : ''
       })
@@ -362,11 +490,21 @@ export default function Ventas() {
         }
       }
 
-      alert('Venta registrada correctamente')
+      // La venta y su stock ya quedaron registrados: aunque fallen los pagos se
+      // limpia el carrito para no duplicarla al reintentar
+      const { error: pagosError } = await registrarPagosVenta({ sale_id: venta.id, pagos: pagosVenta })
+
       setCarrito([])
       quitarTotalAcordado()
       setClienteId('')
+      reiniciarPago()
       cargarProductos()
+
+      if (pagosError) {
+        setError(`La venta se registró, pero no se guardaron sus pagos: ${pagosError.message}. Avisa a un supervisor.`)
+      } else {
+        alert('Venta registrada correctamente')
+      }
     } catch (err) {
       setError(err.message)
     } finally {
@@ -643,13 +781,135 @@ export default function Ventas() {
             {clientes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
 
-          {/* Método de pago */}
-          <select value={metodoPago} onChange={e => setMetodoPago(e.target.value)} className="border border-[#E4D9CB] bg-white p-2 w-full rounded-2xl mb-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30 text-[#3B2418]">
-            <option value="cash">Efectivo</option>
-            <option value="card">Tarjeta</option>
-            <option value="transfer">Transferencia</option>
-            <option value="other">Otro</option>
-          </select>
+          {/* Método de pago: uno solo o dividido entre varios */}
+          <div className="mb-4 space-y-2">
+            {!dividirPago ? (
+              <>
+                <select
+                  value={metodoPago}
+                  onChange={e => setMetodoPago(e.target.value)}
+                  aria-label="Método de pago"
+                  className="border border-[#E4D9CB] bg-white p-2 w-full rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30 text-[#3B2418]"
+                >
+                  {Object.entries(METODOS_PAGO).map(([valor, etiqueta]) => (
+                    <option key={valor} value={valor}>{etiqueta}</option>
+                  ))}
+                </select>
+                {metodoPago === 'cash' && totalCentavos > 0 && (
+                  <EfectivoRecibido recibido={recibido} onChange={setRecibido} montoCentavos={totalCentavos} />
+                )}
+                <button
+                  type="button"
+                  onClick={activarDividirPago}
+                  disabled={carrito.length === 0}
+                  className="flex items-center gap-1.5 py-1 text-xs text-[#3B2418] hover:underline disabled:opacity-40 disabled:no-underline"
+                >
+                  <span className="flex items-center justify-center w-5 h-5 rounded-full bg-[#F4EDE4]">
+                    <Split size={10} />
+                  </span>
+                  Dividir pago entre varios métodos
+                </button>
+              </>
+            ) : (
+              <div className="border border-[#E4D9CB] rounded-2xl p-3 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-1.5 text-sm font-medium text-[#1C140F]">
+                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-[#F4EDE4] text-[#3B2418]">
+                      <Split size={12} />
+                    </span>
+                    Pago dividido
+                  </span>
+                  <button
+                    type="button"
+                    onClick={cancelarDividirPago}
+                    aria-label="Volver a un solo método de pago"
+                    title="Volver a un solo método de pago"
+                    className="flex items-center justify-center w-6 h-6 rounded-full bg-[#F4EDE4] text-[#3B2418] hover:shadow-md transition shrink-0"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+
+                {pagos.map((p, idx) => (
+                  <div key={idx} className="space-y-1.5">
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <select
+                        value={p.metodo}
+                        onChange={e => cambiarPago(idx, 'metodo', e.target.value)}
+                        aria-label={`Método del pago ${idx + 1}`}
+                        className="border border-[#E4D9CB] bg-white p-2 w-full sm:flex-1 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30 text-[#3B2418]"
+                      >
+                        {metodosLibres(p.metodo).map(m => (
+                          <option key={m} value={m}>{METODOS_PAGO[m]}</option>
+                        ))}
+                      </select>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[#3B2418]/50 text-sm">$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={p.monto}
+                          placeholder="0.00"
+                          aria-label={`Monto en ${METODOS_PAGO[p.metodo]}`}
+                          onChange={e => cambiarPago(idx, 'monto', e.target.value)}
+                          className={`w-full sm:w-24 border rounded-lg px-2 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-[#3B2418]/30
+                            ${p.monto !== '' && montoInvalido(p.monto) ? 'border-red-400 bg-red-50' : 'border-[#E4D9CB] bg-white'}`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => usarRestante(idx)}
+                          disabled={restanteCentavos <= 0}
+                          title="Completar con lo que falta"
+                          aria-label={`Completar ${METODOS_PAGO[p.metodo]} con lo que falta`}
+                          className="px-2 py-1.5 rounded-full bg-[#F4EDE4] text-xs text-[#3B2418] hover:shadow-md transition disabled:opacity-40 disabled:hover:shadow-none shrink-0"
+                        >
+                          Restante
+                        </button>
+                        {pagos.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => quitarPago(idx)}
+                            aria-label={`Quitar pago en ${METODOS_PAGO[p.metodo]}`}
+                            className="flex items-center justify-center w-6 h-6 rounded-full bg-[#F4EDE4] text-red-600 hover:shadow-md transition shrink-0"
+                          >
+                            <X size={12} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {p.metodo === 'cash' && !montoInvalido(p.monto) && (
+                      <EfectivoRecibido
+                        recibido={p.recibido}
+                        onChange={valor => cambiarPago(idx, 'recibido', valor)}
+                        montoCentavos={aCentavos(p.monto)}
+                      />
+                    )}
+                  </div>
+                ))}
+
+                {pagos.length < Object.keys(METODOS_PAGO).length && (
+                  <button
+                    type="button"
+                    onClick={agregarPago}
+                    className="flex items-center gap-1.5 py-1 text-xs text-[#3B2418] hover:underline"
+                  >
+                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-[#F4EDE4]">
+                      <Plus size={10} />
+                    </span>
+                    Agregar método
+                  </button>
+                )}
+
+                <div className={`flex justify-between text-sm font-medium ${
+                  restanteCentavos === 0 ? 'text-green-700' : restanteCentavos > 0 ? 'text-amber-700' : 'text-red-600'
+                }`}>
+                  <span>{restanteCentavos === 0 ? 'Pago cubierto' : restanteCentavos > 0 ? 'Restante' : 'Excedente'}</span>
+                  <span>{dinero(Math.abs(restanteCentavos))}</span>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Subtotal, precio acordado con el cliente y total */}
           <div className="pt-2 mb-4 border-t border-[#E4D9CB] space-y-1.5">
@@ -734,7 +994,7 @@ export default function Ventas() {
           {/* Botón de acción */}
           <button
             onClick={confirmarVenta}
-            disabled={carrito.length === 0 || procesando || hayPreciosInvalidos}
+            disabled={carrito.length === 0 || procesando || hayPreciosInvalidos || !!errorPago}
             className="bg-[#3B2418] hover:shadow-md text-[#F4EDE4] w-full py-3 rounded-2xl font-medium disabled:opacity-50 transition-all"
           >
             {procesando ? 'Procesando...' : 'Confirmar venta'}

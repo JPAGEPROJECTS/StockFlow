@@ -4,12 +4,12 @@ import { getCategories } from '../services/productService'
 import { getUsers } from '../services/userService'
 import { getHistorialTurnos } from '../services/shiftService'
 import { exportToExcel } from '../services/exportService'
+import { etiquetaMetodo } from '../lib/metodosPago'
 import { useAuth } from '../context/AuthContext'
 import HistorialTurnos from '../components/HistorialTurnos'
 import CorregirPagoModal from '../components/CorregirPagoModal'
 import { Ban, CalendarDays, CalendarRange, FileDown, Filter, List, LayoutGrid, Pencil, Wallet } from 'lucide-react'
 
-const METODOS_PAGO = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia', other: 'Otro' }
 
 // Fecha local 'YYYY-MM-DD' (toISOString usa UTC y movía las ventas de la noche al día siguiente)
 const diaLocal = (fecha) => {
@@ -29,7 +29,7 @@ const rangoDias = (inicio, fin) => {
 
 // Texto para el tooltip de una venta corregida: "Tarjeta → Efectivo: motivo"
 const textoCorrecciones = (edits) => edits
-  .map(e => `${METODOS_PAGO[e.old_value] ?? e.old_value} → ${METODOS_PAGO[e.new_value] ?? e.new_value}: ${e.reason}`)
+  .map(e => `${etiquetaMetodo(e.old_value)} → ${etiquetaMetodo(e.new_value)}: ${e.reason}`)
   .join('\n')
 
 export default function Reportes() {
@@ -271,7 +271,7 @@ export default function Reportes() {
             ? [r.nota, r.correcciones.length ? `Corrección de pago: ${textoCorrecciones(r.correcciones)}` : '']
               .filter(Boolean).join(' · ')
             : '',
-          metodoPago: (METODOS_PAGO[r.metodoPago] ?? r.metodoPago) + (r.correcciones.length ? ' (corregido)' : '')
+          metodoPago: etiquetaMetodo(r.metodoPago) + (r.correcciones.length ? ' (corregido)' : '')
         }
       })
 
@@ -569,7 +569,7 @@ export default function Reportes() {
                       <td className="p-3 text-[#3B2418] whitespace-nowrap">${r.precioUnitario.toFixed(2)}</td>
                       <td className="p-3 font-medium text-[#1C140F] whitespace-nowrap">${r.subtotal.toFixed(2)}</td>
                       <td className="p-3 text-[#3B2418]/60 whitespace-nowrap">
-                        {METODOS_PAGO[r.metodoPago] ?? r.metodoPago}
+                        {etiquetaMetodo(r.metodoPago)}
                         {nuevaVenta && r.correcciones.length > 0 && (
                           <span
                             title={textoCorrecciones(r.correcciones)}

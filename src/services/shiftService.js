@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient'
+import { pagosDeVenta } from '../lib/metodosPago'
 
 export const getCashRegisters = async () => {
   return await supabase.from('cash_registers').select('*').order('name')
@@ -38,7 +39,7 @@ export const getResumenParaCierre = async (shift_id) => {
 
   const { data: ventas, error: ventasError } = await supabase
     .from('sales')
-    .select('total, payment_method')
+    .select('total, payment_method, sale_payments(method, amount)')
     .eq('shift_id', shift_id)
     .eq('status', 'completed')
   if (ventasError) return { data: null, error: ventasError }
@@ -49,9 +50,11 @@ export const getResumenParaCierre = async (shift_id) => {
     .eq('shift_id', shift_id)
   if (movError) return { data: null, error: movError }
 
+  // Solo la parte cobrada en efectivo (una venta mixta aporta solo su pago en efectivo)
   const ventasEfectivo = ventas
-    .filter(v => v.payment_method === 'cash')
-    .reduce((s, v) => s + Number(v.total), 0)
+    .flatMap(pagosDeVenta)
+    .filter(p => p.method === 'cash')
+    .reduce((s, p) => s + p.amount, 0)
 
   const totalVentas = ventas.reduce((s, v) => s + Number(v.total), 0)
 

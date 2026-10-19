@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import { getDetalleTurno } from '../services/shiftService'
 import { useAuth } from '../context/AuthContext'
 import CorregirPagoModal from './CorregirPagoModal'
+import { etiquetaMetodo } from '../lib/metodosPago'
 import { X, ArrowUpCircle, ArrowDownCircle, Receipt, Wallet, StickyNote, Pencil } from 'lucide-react'
 
-const METODOS_PAGO = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia', other: 'Otro' }
 
 const dinero = (n) => `$${Number(n ?? 0).toFixed(2)}`
 const fechaHora = (f) => new Date(f).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })
@@ -19,7 +19,7 @@ const resumenProductos = (venta) => {
 
 // Texto para el tooltip de una venta corregida: "Tarjeta → Efectivo: motivo"
 const textoCorrecciones = (edits) => edits
-  .map(e => `${METODOS_PAGO[e.old_value] ?? e.old_value} → ${METODOS_PAGO[e.new_value] ?? e.new_value}: ${e.reason}`)
+  .map(e => `${etiquetaMetodo(e.old_value)} → ${etiquetaMetodo(e.new_value)}: ${e.reason}`)
   .join('\n')
 
 // `turno` es una fila de v_turnos_resumen (cajera, caja, montos del cierre, fechas).
@@ -166,7 +166,7 @@ export default function TurnoDetalleModal({ turno, onClose, onCambio }) {
                             {resumenProductos(v)}
                           </p>
                           <p className="text-xs text-[#3B2418]/50">
-                            {hora(v.created_at)} · {METODOS_PAGO[v.payment_method] ?? v.payment_method}
+                            {hora(v.created_at)} · {etiquetaMetodo(v.payment_method)}
                             {cancelada && ' · Cancelada'}
                             {edits.length > 0 && (
                               <span

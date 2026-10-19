@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { corregirMetodoPago } from '../services/salesService'
+import { METODOS_PAGO, etiquetaMetodo } from '../lib/metodosPago'
 import { CreditCard, X } from 'lucide-react'
 
-const METODOS_PAGO = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia', other: 'Otro' }
 
 // `venta`: { id, payment_method, total, descripcion }. onGuardado se llama
 // tras corregir, para que quien abrió el modal recargue sus datos.
@@ -10,6 +10,7 @@ export default function CorregirPagoModal({ venta, onClose, onGuardado }) {
   const [metodo, setMetodo] = useState(
     Object.keys(METODOS_PAGO).find(m => m !== venta.payment_method)
   )
+  const esMixta = venta.payment_method === 'mixed'
   const [motivo, setMotivo] = useState('')
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
@@ -60,9 +61,14 @@ export default function CorregirPagoModal({ venta, onClose, onGuardado }) {
 
         <div>
           <p className="block text-xs text-[#3B2418]/70 mb-1">Registrado como</p>
-          <p className="text-sm font-medium text-[#3B2418] px-1">{METODOS_PAGO[venta.payment_method] ?? venta.payment_method}</p>
+          <p className="text-sm font-medium text-[#3B2418] px-1">{etiquetaMetodo(venta.payment_method)}</p>
         </div>
 
+        {esMixta ? (
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-2xl p-2">
+            Esta venta se cobró con varios métodos. Por ahora sus pagos no se pueden corregir desde aquí.
+          </p>
+        ) : (<>
         <div>
           <label className="block text-xs text-[#3B2418]/70 mb-1">Método correcto</label>
           <div className="grid grid-cols-2 gap-2">
@@ -99,6 +105,7 @@ export default function CorregirPagoModal({ venta, onClose, onGuardado }) {
             Esto cambia el efectivo esperado del turno. Si el turno ya está cerrado, se recalculan el esperado y la diferencia.
           </p>
         )}
+        </>)}
 
         <div className="flex gap-2 justify-end pt-2">
           <button
@@ -110,7 +117,7 @@ export default function CorregirPagoModal({ venta, onClose, onGuardado }) {
           </button>
           <button
             type="submit"
-            disabled={guardando}
+            disabled={guardando || esMixta}
             className="bg-[#3B2418] text-[#F4EDE4] px-4 py-2 rounded-2xl text-sm sm:text-base font-medium hover:shadow-md transition-all disabled:opacity-50"
           >
             {guardando ? 'Guardando...' : 'Guardar corrección'}

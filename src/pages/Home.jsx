@@ -6,6 +6,7 @@ import {
   Trophy, CreditCard, Clock, ArrowRight, CircleCheck, CircleAlert, Search
 } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
+import { etiquetaMetodo } from '../lib/metodosPago'
 import { getProducts } from '../services/productService'
 import { getTurnoActivo } from '../services/shiftService'
 import { getPerfil, getVentasDesde, getItemsVendidosDesde, claveDia, inicioHaceDias } from '../services/dashboardService'
@@ -15,7 +16,6 @@ import { MuestraColor } from '../components/ColorCombobox'
 // El inicio no muestra montos de dinero (puede verlo un cliente o cualquier empleado):
 // todo se expresa en número de ventas y piezas. Los importes quedan en Reportes.
 
-const METODOS_PAGO = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia', other: 'Otro' }
 const DIAS_GRAFICA = 14
 const DIAS_RANKING = 30
 
@@ -368,7 +368,7 @@ export default function Home() {
                     {kpis.metodos.map(m => (
                       <li key={m.metodo}>
                         <div className="flex items-center justify-between gap-2 text-sm">
-                          <span className="text-[#1C140F]">{METODOS_PAGO[m.metodo] ?? m.metodo}</span>
+                          <span className="text-[#1C140F]">{etiquetaMetodo(m.metodo)}</span>
                           <span className="text-xs text-[#3B2418]/70">
                             {Math.round(m.porcentaje)}% · {plural(m.num, 'venta', 'ventas')}
                           </span>
@@ -550,7 +550,7 @@ function ListaUltimasVentas({ error, cargando, ventas, vacio }) {
           <div className="min-w-0">
             <p className="text-[#1C140F] truncate">{resumenProductos(v)}</p>
             <p className="text-xs text-[#3B2418]/50">
-              {formatoCuando(v.created_at)} · {METODOS_PAGO[v.payment_method] ?? v.payment_method}
+              {formatoCuando(v.created_at)} · {etiquetaMetodo(v.payment_method)}
             </p>
           </div>
           <span className="shrink-0 text-xs text-[#3B2418]/70">{plural(piezasDe(v), 'pieza', 'piezas')}</span>

@@ -28,6 +28,17 @@ export const addSaleItem = async ({ sale_id, product_id, warehouse_id, quantity,
     .select()
 }
 
+// Guarda los pagos de la venta (uno o varios métodos) después de insertar sus
+// items. La función de Supabase valida que sumen sales.total y fija
+// sales.payment_method ('mixed' si hay más de uno).
+// pagos: [{ method, amount, cash_received? }]
+export const registrarPagosVenta = async ({ sale_id, pagos }) => {
+  return await supabase.rpc('registrar_pagos_venta', {
+    p_sale_id: sale_id,
+    p_pagos: pagos
+  })
+}
+
 export const cancelSale = async (sale_id) => {
   return await supabase.from('sales').update({ status: 'cancelled' }).eq('id', sale_id)
 }
