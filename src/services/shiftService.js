@@ -152,3 +152,12 @@ export const getDetalleTurno = async (shift_id) => {
   }
 }
 
+
+// Turnos de todas las cajeras, del más reciente al más viejo (abiertos o cerrados)
+export const getTurnosRecientes = async (limite = 100) => {
+  return await supabase
+    .from('v_turnos_resumen')
+    .select('shift_id, cajera, caja, status, opened_at, closed_at')
+    .order('opened_at', { ascending: false })
+    .limit(limite)
+}

@@ -67,3 +67,19 @@ export const corregirMetodoPago = async ({ sale_id, nuevo_metodo, motivo }) => {
     p_motivo: motivo
   })
 }
+
+// Artículos vendidos (ventas completadas) de un turno o de un rango de fechas
+// [desde, hasta), para el detalle rápido del punto de venta.
+export const getArticulosVendidos = async ({ shift_id, desde, hasta }) => {
+  let query = supabase
+    .from('sales')
+    .select('id, created_at, payment_method, total, sale_items(id, quantity, unit_price, products(name, folio, color))')
+    .eq('status', 'completed')
+    .order('created_at', { ascending: false })
+
+  if (shift_id) query = query.eq('shift_id', shift_id)
+  if (desde) query = query.gte('created_at', desde)
+  if (hasta) query = query.lt('created_at', hasta)
+
+  return await query
+}

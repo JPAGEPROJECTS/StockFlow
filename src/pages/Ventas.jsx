@@ -4,8 +4,9 @@ import { getProductsForSale, getCategories } from '../services/productService'
 import { getCustomers, createSale, addSaleItem, registrarPagosVenta } from '../services/salesService'
 import { getTurnoActivo } from '../services/shiftService'
 import { METODOS_PAGO } from '../lib/metodosPago'
-import { Search, X, Minus, Plus, Pencil, Split } from 'lucide-react'
+import { Search, X, Minus, Plus, Pencil, Split, ReceiptText } from 'lucide-react'
 import { MuestraColor } from '../components/ColorCombobox'
+import VentasDetalleModal from '../components/VentasDetalleModal'
 
 // Quita acentos y normaliza para que "cafe" encuentre "café", etc.
 const normalizar = (str) =>
@@ -141,6 +142,7 @@ export default function Ventas() {
   const [procesando, setProcesando] = useState(false)
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
+  const [verDetalleVentas, setVerDetalleVentas] = useState(false)
   const toastTimer = useRef(null)
   const searchInputRef = useRef(null)
 
@@ -1001,6 +1003,19 @@ export default function Ventas() {
           </button>
         </div>
       </div>
+
+      {/* Burbuja flotante: detalle de lo vendido en el turno o en el día */}
+      <button
+        onClick={() => setVerDetalleVentas(true)}
+        aria-label="Ver detalle de ventas"
+        aria-expanded={verDetalleVentas}
+        title="Detalle de ventas"
+        className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40 flex items-center justify-center w-14 h-14 rounded-full bg-[#3B2418] text-[#F4EDE4] shadow-lg hover:shadow-xl hover:scale-105 transition"
+      >
+        <ReceiptText size={24} />
+      </button>
+
+      {verDetalleVentas && <VentasDetalleModal onClose={() => setVerDetalleVentas(false)} />}
     </div>
   )
 }
